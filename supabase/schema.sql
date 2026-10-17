@@ -20,6 +20,7 @@ create table if not exists public.lwv_customers (
   event_name text,
   event_date date,
   event_time text,
+  appointment_date date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -59,3 +60,4 @@ alter table public.lwv_winners enable row level security;
 alter table public.lwv_customers add column if not exists event_name text;
 alter table public.lwv_customers add column if not exists event_date date;
 alter table public.lwv_customers add column if not exists event_time text;
+alter table public.lwv_customers add column if not exists appointment_date date;

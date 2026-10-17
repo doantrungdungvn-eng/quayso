@@ -4,14 +4,18 @@ import { FormEvent, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, QrCode } from "lucide-react";
 
-type Fields = { full_name: string; phone: string; customer_code: string; advisor_name: string; agency: string; survey_rating: string; survey_interest: string; survey_feedback: string; consent: boolean };
-const initial: Fields = { full_name: "", phone: "", customer_code: "", advisor_name: "", agency: "", survey_rating: "5", survey_interest: "Giải pháp sức khỏe", survey_feedback: "", consent: false };
+type Fields = { full_name: string; phone: string; advisor_name: string; agency: string; appointment_date: string; survey_rating: string; survey_interest: string; survey_feedback: string; consent: boolean };
+const initial: Fields = { full_name: "", phone: "", advisor_name: "", agency: "", appointment_date: "", survey_rating: "5", survey_interest: "Giải pháp sức khỏe", survey_feedback: "", consent: false };
 
 export default function RegisterPage() {
   const params = useSearchParams();
   const eventName = params.get("eventName") || "Sự kiện khách hàng";
   const eventDate = params.get("eventDate") || "";
   const eventTime = params.get("eventTime") || "";
+  const advisorOptions = (params.get("advisors") || "").split("|").map(v => v.trim()).filter(Boolean);
+  const agencyOptions = (params.get("agencies") || "").split("|").map(v => v.trim()).filter(Boolean);
+  const advisorOptions = (params.get("advisors") || "").split("|").map(v => v.trim()).filter(Boolean);
+  const agencyOptions = (params.get("agencies") || "").split("|").map(v => v.trim()).filter(Boolean);
   const [form, setForm] = useState<Fields>(initial);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
@@ -25,7 +29,7 @@ export default function RegisterPage() {
     try {
       const response = await fetch("/api/register", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, survey_rating: Number(form.survey_rating), event_name: eventName, event_date: eventDate, event_time: eventTime, id: crypto.randomUUID() })
+        body: JSON.stringify({ ...form, survey_rating: Number(form.survey_rating), event_name: eventName, event_date: eventDate, event_time: eventTime, appointment_date: form.appointment_date, id: crypto.randomUUID() })
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Đăng ký chưa thành công. Vui lòng thử lại.");
@@ -45,9 +49,10 @@ export default function RegisterPage() {
       <form onSubmit={submit} className="field-grid">
         <div className="field full"><label>Họ và tên *</label><input value={form.full_name} onChange={e => update("full_name", e.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" required /></div>
         <div className="field"><label>Số điện thoại *</label><input value={form.phone} onChange={e => update("phone", e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="09xxxxxxxx" required /></div>
-        <div className="field"><label>Mã khách hàng</label><input value={form.customer_code} onChange={e => update("customer_code", e.target.value)} placeholder="Nếu có" /></div>
-        <div className="field"><label>TVV mời khách</label><input value={form.advisor_name} onChange={e => update("advisor_name", e.target.value)} placeholder="Tên tư vấn viên" /></div>
-        <div className="field"><label>Đơn vị / nhóm</label><input value={form.agency} onChange={e => update("agency", e.target.value)} placeholder="GA / nhóm kinh doanh" /></div>
+        
+        <div className="field"><label>TVV mời khách</label><input list="advisor-options" value={form.advisor_name} onChange={e => update("advisor_name", e.target.value)} placeholder="Chọn hoặc nhập tên tư vấn viên" /><datalist id="advisor-options">{advisorOptions.map((v: string) => <option key={v} value={v} />)}</datalist></div>
+        <div className="field"><label>Đơn vị / nhóm</label><input list="agency-options" value={form.agency} onChange={e => update("agency", e.target.value)} placeholder="Chọn hoặc nhập đơn vị / nhóm" /><datalist id="agency-options">{agencyOptions.map((v: string) => <option key={v} value={v} />)}</datalist></div>
+        <div className="field full"><label>Ngày hẹn tư vấn chi tiết / kiểm tra hợp đồng</label><input type="date" value={form.appointment_date} onChange={e => update("appointment_date", e.target.value)} /></div>
         <div className="field full"><label>Mức độ hài lòng với chương trình</label><select value={form.survey_rating} onChange={e => update("survey_rating", e.target.value)}><option value="5">5 - Rất hài lòng</option><option value="4">4 - Hài lòng</option><option value="3">3 - Bình thường</option><option value="2">2 - Chưa hài lòng</option><option value="1">1 - Không hài lòng</option></select></div>
         <div className="field full"><label>Anh/chị quan tâm giải pháp nào?</label><select value={form.survey_interest} onChange={e => update("survey_interest", e.target.value)}><option>Giải pháp sức khỏe</option><option>Bảo vệ tài chính gia đình</option><option>Tích lũy dài hạn</option><option>Đầu tư và quỹ</option><option>Chưa có nhu cầu</option><option>Khác</option></select></div>
         <div className="field full"><label>Ý kiến góp ý (không bắt buộc)</label><textarea value={form.survey_feedback} onChange={e => update("survey_feedback", e.target.value)} placeholder="Chia sẻ ý kiến của anh/chị..." /></div>

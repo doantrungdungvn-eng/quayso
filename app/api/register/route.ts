@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
   const row = {
     id: String(body.id || crypto.randomUUID()), full_name, phone,
-    customer_code: String(body.customer_code || "").trim() || null,
+    customer_code: null,
     advisor_name: String(body.advisor_name || "").trim() || null,
     agency: String(body.agency || "").trim() || null,
     survey_rating: Number(body.survey_rating || 5),
@@ -38,7 +38,8 @@ export async function POST(request: Request) {
     consent: true, eligible: true,
     event_name: String(body.event_name || "").trim() || null,
     event_date: String(body.event_date || "").trim() || null,
-    event_time: String(body.event_time || "").trim() || null
+    event_time: String(body.event_time || "").trim() || null,
+    appointment_date: String(body.appointment_date || "").trim() || null
   };
   const { error } = await supabase.from("lwv_customers").insert(row);
   if (error) {

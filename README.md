@@ -91,3 +91,10 @@ alter table public.lwv_customers add column if not exists event_time text;
 ```
 
 Sau đó đẩy mã nguồn lên GitHub và chờ Vercel deploy thành công. Cấu hình ngày/giờ trên trang quản trị được mã hóa vào URL QR; mỗi link QR có thể dùng độc lập cho sự kiện tương ứng.
+
+## Cập nhật biểu mẫu đăng ký (ngày hẹn, danh sách TVV/đơn vị)
+- Biểu mẫu đã bỏ trường mã khách hàng.
+- Số điện thoại trong màn hình chúc mừng người trúng chỉ hiển thị 4 số cuối.
+- Có trường ngày hẹn tư vấn chi tiết / kiểm tra hợp đồng.
+- Trong Cài đặt, nhập danh sách TVV và Đơn vị/Nhóm, mỗi mục một dòng, rồi lưu. QR/link tạo sau khi lưu sẽ mang theo các lựa chọn này để điện thoại khách hàng hiển thị dropdown.
+- Nếu bảng `lwv_customers` đã tồn tại trên Supabase, chạy migration một lần: `alter table public.lwv_customers add column if not exists appointment_date date;`
