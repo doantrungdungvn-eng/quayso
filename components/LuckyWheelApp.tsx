@@ -150,8 +150,8 @@ export default function LuckyWheelApp() {
       const cs = (result.customers || []) as Customer[];
       const ps = (result.prizes || []) as Prize[];
       const ws = (result.winners || []) as Winner[];
-      setCustomers(cs); setPrizes(ps.length ? ps : defaultPrizes); setPrizeEdits(Object.fromEntries((ps.length ? ps : defaultPrizes).map((p:Prize)=>[p.id,{name:p.name,quantity:String(p.quantity)}]))); setWinners(ws);
-      saveLocal("lwv_customers",cs); saveLocal("lwv_prizes",ps.length ? ps : defaultPrizes); saveLocal("lwv_winners",ws);
+      setCustomers(cs); setPrizes(ps); setPrizeEdits(Object.fromEntries(ps.map((p:Prize)=>[p.id,{name:p.name,quantity:String(p.quantity)}]))); setWinners(ws);
+      saveLocal("lwv_customers",cs); saveLocal("lwv_prizes",ps); saveLocal("lwv_winners",ws);
       showNotice(`Đã đồng bộ dữ liệu từ Supabase: ${cs.length} khách hàng, ${ws.length} lượt trúng.`);
     } catch {
       showNotice("Không kết nối được máy chủ đồng bộ. Vui lòng thử lại.","error");
