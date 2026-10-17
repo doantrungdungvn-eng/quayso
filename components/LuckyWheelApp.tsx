@@ -217,15 +217,9 @@ export default function LuckyWheelApp() {
   }
   async function spin() {
     if(spinning)return;
-    if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng. Hãy thoát toàn màn hình để đăng nhập nếu cần.","error");return;}
+    if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng.","error");return;}
     if(!eligible.length){showNotice("Chưa có khách hàng đủ điều kiện hoặc tất cả khách đã trúng thưởng.","error");return;}
-    // In fullscreen, the prize selector is hidden. If the saved selection is stale
-    // (for example after deleting/editing prizes), automatically use the first available prize.
-    const prizeToSpin = currentPrize && currentPrize.active && currentPrize.won < currentPrize.quantity
-      ? currentPrize
-      : activePrizes[0];
-    if(!prizeToSpin){showNotice("Không còn giải thưởng đang hoạt động hoặc tất cả giải đã hết số lượng. Vào Cài đặt để kiểm tra giải thưởng.","error");return;}
-    if(prizeToSpin.id !== selectedPrize) setSelectedPrize(prizeToSpin.id);
+    if(!currentPrize||!currentPrize.active||currentPrize.won>=currentPrize.quantity){showNotice("Giải thưởng đã hết số lượng. Hãy chọn giải khác.","error");return;}
     try {
       const idx=randomIndex(eligible.length);const picked=eligible[idx];
       const arc=360/eligible.length;
@@ -238,7 +232,7 @@ export default function LuckyWheelApp() {
       setSpinning(true);setRotation(nextRotation);
       spinTimer.current=setTimeout(async()=>{
         try {
-          const prize=prizeToSpin;
+          const prize=currentPrize;
           const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
           // Persist the result server-side so Supabase RLS cannot silently block browser writes.
           if(supabaseConfigured){
@@ -302,6 +296,23 @@ export default function LuckyWheelApp() {
     if(!confirm(`Xóa khách hàng ${c.full_name}? Hành động này không xóa lịch sử trúng thưởng.`))return;
     const next=customers.filter(x=>x.id!==c.id);setCustomers(next);await persistAll(next,prizes,winners);showNotice("Đã xóa khách hàng.");
   }
+  async function resetCustomerWinner(c:Customer) {
+    const winner=winners.find(w=>w.customer_id===c.id);
+    if(!winner)return;
+    if(!confirm(`Đặt lại trạng thái trúng thưởng của ${c.full_name}? Khách sẽ được quay lại và số lượng đã trao của giải sẽ giảm 1.`))return;
+    try {
+      if(supabaseConfigured){
+        const response=await fetch("/api/admin/winners",{method:"DELETE",headers:{"Content-Type":"application/json","x-admin-pin":adminPin},body:JSON.stringify({winnerId:winner.id}),cache:"no-store"});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(result.error||"Không thể đặt lại trạng thái trên Supabase.");
+      }
+      const nextW=winners.filter(w=>w.id!==winner.id);
+      const nextP=prizes.map(p=>p.name===winner.prize_name?{...p,won:Math.max(0,p.won-1)}:p);
+      setWinners(nextW);setPrizes(nextP);saveLocal("lwv_winners",nextW);saveLocal("lwv_prizes",nextP);
+      await persistAll(customers,nextP,nextW);
+      showNotice(`${c.full_name} đã được mở lại quyền quay thưởng.`);
+    } catch(error) { showNotice(error instanceof Error?error.message:"Không thể đặt lại trạng thái trúng thưởng.","error"); }
+  }
   async function resetWinners() {
     if(!confirm("Xóa toàn bộ kết quả trúng thưởng và đưa số lượng giải về 0? Chỉ thực hiện nếu ban tổ chức đã xác nhận."))return;
     const nextP=prizes.map(p=>({...p,won:0}));try{await savePrizesToServer(nextP);setWinners([]);setPrizes(nextP);await persistAll(customers,nextP,[]);showNotice("Đã đặt lại kết quả trúng thưởng.");}catch(error){showNotice(error instanceof Error?error.message:"Không thể lưu thay đổi giải thưởng.","error");}
@@ -328,7 +339,7 @@ export default function LuckyWheelApp() {
         <section className={`panel wheel-panel ${wheelFullscreen?"wheel-fullscreen-panel":""}`}>
           <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>LUCKY DRAW</h3><p>{eligible.length} khách hàng trong vòng quay</p></div><div className="toolbar"><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>setWheelFullscreen(v=>!v)}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
           <div className="wheel-wrap" ref={wheelRef} style={{width:wheelFullscreen?`min(88vmin, ${620*wheelZoom}px)`:`min(100%, ${500*wheelZoom}px)`,maxWidth:"100%"}}><div className="wheel-pointer"/><div className="wheel" style={{transform:`rotate(${rotation}deg)`}}><canvas ref={canvasRef}/></div><div className="wheel-center">✦</div></div>
-          <button className="spin-btn" onClick={spin} disabled={spinning||!eligible.length||!activePrizes.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
+          <button className="spin-btn" onClick={spin} disabled={spinning||!eligible.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
           <div className="wheel-caption">{spinning?"Chúc bạn may mắn! Đang xác định kết quả...":"Kết quả ngẫu nhiên · Mỗi khách chỉ trúng một lần"}</div>
         </section>
         <div className="side-stack">
@@ -364,7 +375,7 @@ export default function LuckyWheelApp() {
         {!publicRegistration&&<section className="panel"><div className="panel-head"><div><h3>QR đăng ký sự kiện</h3><p>Khách hàng có thể quét mã để mở trang đăng ký trên thiết bị của mình.</p></div></div><div className="qr-box"><QRCodeSVG value={registrationUrl||"https://example.com"} size={190} level="H" includeMargin/></div><p className="small-muted" style={{marginTop:12}}>QR hiện dẫn đến đường dẫn trang đăng ký của ứng dụng sau khi deploy. Hãy quét thử bằng điện thoại khác trước khi in.</p><div className="link-break">{registrationUrl}</div><div className="toolbar" style={{marginTop:12}}><button className="secondary-btn" onClick={()=>{navigator.clipboard?.writeText(registrationUrl);showNotice("Đã sao chép đường dẫn đăng ký.");}}><Copy size={14}/> Sao chép link</button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><ExternalLink size={14}/> Xem QR lớn</button></div><div className="notice" style={{marginTop:18}}>Nếu triển khai sự kiện thật, nên dùng đường dẫn công khai riêng cho biểu mẫu và không để khách truy cập vào màn hình quản trị.</div></section>}
       </div>}
 
-      {tab==="customers"&&<section className="panel"><div className="panel-head"><div><h3>Danh sách khách hàng</h3><p>Quản lý hồ sơ, điều kiện tham gia và dữ liệu TVV giới thiệu.</p></div><div className="toolbar"><label className="secondary-btn"><Upload size={15}/> Import Excel<input type="file" accept=".xlsx,.xls,.csv" onChange={importExcel} hidden/></label><button className="secondary-btn" onClick={exportCustomers}><Download size={15}/> Xuất Excel</button><button className="primary-btn" onClick={()=>setTab("register")}><Plus size={15}/> Thêm khách</button></div></div><div style={{position:"relative",maxWidth:420,marginBottom:14}}><Search size={15} style={{position:"absolute",left:12,top:13,color:"#829087"}}/><input className="search-input" style={{paddingLeft:36}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Tìm tên, số điện thoại, TVV..."/></div><div className="table-wrap"><table><thead><tr><th>Khách hàng</th><th>Số điện thoại</th><th>TVV mời</th><th>Khảo sát</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{filteredCustomers.map(c=><tr key={c.id}><td><b>{c.full_name}</b><div className="small-muted">{c.customer_code||"Chưa có mã KH"}</div></td><td>{c.phone}</td><td>{c.advisor_name||"—"}</td><td>{c.survey_rating?`${c.survey_rating}/5`:"Chưa có"}</td><td><span className="tag" style={c.eligible===false?{background:"#fff0ed",color:"#a43a2c"}:{}}>{c.eligible===false?"Không đủ điều kiện":winners.some(w=>w.customer_id===c.id)?"Đã trúng":"Đủ điều kiện"}</span></td><td><div className="toolbar"><button className="secondary-btn" onClick={()=>toggleEligibility(c)}>{c.eligible===false?"Cho phép quay":"Loại khỏi quay"}</button><button className="danger-btn" onClick={()=>removeCustomer(c)} title="Xóa khách"><Trash2 size={14}/></button></div></td></tr>)}</tbody></table>{!filteredCustomers.length&&<div className="empty">Chưa có dữ liệu. Đăng ký khách hàng hoặc nhập Excel để bắt đầu.</div>}</div><p className="small-muted" style={{marginTop:12}}>Excel hỗ trợ các cột: Họ và tên, Số điện thoại, Mã khách hàng, TVV mời, Đơn vị/nhóm. Số điện thoại trùng được tự động bỏ qua.</p></section>}
+      {tab==="customers"&&<section className="panel"><div className="panel-head"><div><h3>Danh sách khách hàng</h3><p>Quản lý hồ sơ, điều kiện tham gia và dữ liệu TVV giới thiệu.</p></div><div className="toolbar"><label className="secondary-btn"><Upload size={15}/> Import Excel<input type="file" accept=".xlsx,.xls,.csv" onChange={importExcel} hidden/></label><button className="secondary-btn" onClick={exportCustomers}><Download size={15}/> Xuất Excel</button><button className="primary-btn" onClick={()=>setTab("register")}><Plus size={15}/> Thêm khách</button></div></div><div style={{position:"relative",maxWidth:420,marginBottom:14}}><Search size={15} style={{position:"absolute",left:12,top:13,color:"#829087"}}/><input className="search-input" style={{paddingLeft:36}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Tìm tên, số điện thoại, TVV..."/></div><div className="table-wrap"><table><thead><tr><th>Khách hàng</th><th>Số điện thoại</th><th>TVV mời</th><th>Khảo sát</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{filteredCustomers.map(c=><tr key={c.id}><td><b>{c.full_name}</b><div className="small-muted">{c.customer_code||"Chưa có mã KH"}</div></td><td>{c.phone}</td><td>{c.advisor_name||"—"}</td><td>{c.survey_rating?`${c.survey_rating}/5`:"Chưa có"}</td><td><span className="tag" style={c.eligible===false?{background:"#fff0ed",color:"#a43a2c"}:{}}>{c.eligible===false?"Không đủ điều kiện":winners.some(w=>w.customer_id===c.id)?"Đã trúng":"Đủ điều kiện"}</span></td><td><div className="toolbar">{winners.some(w=>w.customer_id===c.id)&&isAdmin&&<button className="secondary-btn" onClick={()=>resetCustomerWinner(c)} title="Xóa trạng thái trúng và cho khách quay lại"><RotateCcw size={14}/> Reset trúng</button>}<button className="secondary-btn" onClick={()=>toggleEligibility(c)}>{c.eligible===false?"Cho phép quay":"Loại khỏi quay"}</button><button className="danger-btn" onClick={()=>removeCustomer(c)} title="Xóa khách"><Trash2 size={14}/></button></div></td></tr>)}</tbody></table>{!filteredCustomers.length&&<div className="empty">Chưa có dữ liệu. Đăng ký khách hàng hoặc nhập Excel để bắt đầu.</div>}</div><p className="small-muted" style={{marginTop:12}}>Excel hỗ trợ các cột: Họ và tên, Số điện thoại, Mã khách hàng, TVV mời, Đơn vị/nhóm. Số điện thoại trùng được tự động bỏ qua.</p></section>}
 
       {tab==="winners"&&<section className="panel"><div className="panel-head"><div><h3><Trophy size={18} style={{display:"inline",verticalAlign:"-3px",marginRight:8,color:"#b88b30"}}/>Danh sách trúng thưởng</h3><p>Danh sách lịch sử kết quả của sự kiện.</p></div><div className="toolbar"><button className="secondary-btn" onClick={exportWinners}><Download size={15}/> Xuất Excel</button>{isAdmin&&<button className="danger-btn" onClick={resetWinners}><RotateCcw size={15}/> Đặt lại kết quả</button>}</div></div><div style={{position:"relative",maxWidth:420,marginBottom:14}}><Search size={15} style={{position:"absolute",left:12,top:13,color:"#829087"}}/><input className="search-input" style={{paddingLeft:36}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Tìm người trúng, TVV hoặc giải..."/></div><div className="table-wrap"><table><thead><tr><th>STT</th><th>Khách hàng</th><th>Số điện thoại</th><th>TVV mời</th><th>Giải thưởng</th><th>Thời gian</th></tr></thead><tbody>{filteredWinners.map((w,i)=><tr key={w.id}><td>{i+1}</td><td><b>{w.full_name}</b><div className="small-muted">{w.customer_code}</div></td><td>{w.phone}</td><td>{w.advisor_name||"—"}</td><td><span className="tag">{w.prize_name}</span></td><td>{new Date(w.won_at).toLocaleString("vi-VN")}</td></tr>)}</tbody></table>{!filteredWinners.length&&<div className="empty">Chưa có khách hàng trúng thưởng.</div>}</div></section>}
 
