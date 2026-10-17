@@ -1,14 +1,17 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CheckCircle2, QrCode } from "lucide-react";
 
 type Fields = { full_name: string; phone: string; customer_code: string; advisor_name: string; agency: string; survey_rating: string; survey_interest: string; survey_feedback: string; consent: boolean };
 const initial: Fields = { full_name: "", phone: "", customer_code: "", advisor_name: "", agency: "", survey_rating: "5", survey_interest: "Giải pháp sức khỏe", survey_feedback: "", consent: false };
 
-type RegisterFormProps = { eventName: string; eventDate: string; eventTime: string };
-
-export default function RegisterPage({ eventName, eventDate, eventTime }: RegisterFormProps) {
+export default function RegisterPage() {
+  const params = useSearchParams();
+  const eventName = params.get("eventName") || "Sự kiện khách hàng";
+  const eventDate = params.get("eventDate") || "";
+  const eventTime = params.get("eventTime") || "";
   const [form, setForm] = useState<Fields>(initial);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);

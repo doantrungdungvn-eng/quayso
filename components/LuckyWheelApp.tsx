@@ -217,9 +217,15 @@ export default function LuckyWheelApp() {
   }
   async function spin() {
     if(spinning)return;
-    if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng.","error");return;}
+    if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng. Hãy thoát toàn màn hình để đăng nhập nếu cần.","error");return;}
     if(!eligible.length){showNotice("Chưa có khách hàng đủ điều kiện hoặc tất cả khách đã trúng thưởng.","error");return;}
-    if(!currentPrize||!currentPrize.active||currentPrize.won>=currentPrize.quantity){showNotice("Giải thưởng đã hết số lượng. Hãy chọn giải khác.","error");return;}
+    // In fullscreen, the prize selector is hidden. If the saved selection is stale
+    // (for example after deleting/editing prizes), automatically use the first available prize.
+    const prizeToSpin = currentPrize && currentPrize.active && currentPrize.won < currentPrize.quantity
+      ? currentPrize
+      : activePrizes[0];
+    if(!prizeToSpin){showNotice("Không còn giải thưởng đang hoạt động hoặc tất cả giải đã hết số lượng. Vào Cài đặt để kiểm tra giải thưởng.","error");return;}
+    if(prizeToSpin.id !== selectedPrize) setSelectedPrize(prizeToSpin.id);
     try {
       const idx=randomIndex(eligible.length);const picked=eligible[idx];
       const arc=360/eligible.length;
@@ -232,7 +238,7 @@ export default function LuckyWheelApp() {
       setSpinning(true);setRotation(nextRotation);
       spinTimer.current=setTimeout(async()=>{
         try {
-          const prize=currentPrize;
+          const prize=prizeToSpin;
           const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
           // Persist the result server-side so Supabase RLS cannot silently block browser writes.
           if(supabaseConfigured){
@@ -322,7 +328,7 @@ export default function LuckyWheelApp() {
         <section className={`panel wheel-panel ${wheelFullscreen?"wheel-fullscreen-panel":""}`}>
           <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>LUCKY DRAW</h3><p>{eligible.length} khách hàng trong vòng quay</p></div><div className="toolbar"><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>setWheelFullscreen(v=>!v)}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
           <div className="wheel-wrap" ref={wheelRef} style={{width:wheelFullscreen?`min(88vmin, ${620*wheelZoom}px)`:`min(100%, ${500*wheelZoom}px)`,maxWidth:"100%"}}><div className="wheel-pointer"/><div className="wheel" style={{transform:`rotate(${rotation}deg)`}}><canvas ref={canvasRef}/></div><div className="wheel-center">✦</div></div>
-          <button className="spin-btn" onClick={spin} disabled={spinning||!eligible.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
+          <button className="spin-btn" onClick={spin} disabled={spinning||!eligible.length||!activePrizes.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
           <div className="wheel-caption">{spinning?"Chúc bạn may mắn! Đang xác định kết quả...":"Kết quả ngẫu nhiên · Mỗi khách chỉ trúng một lần"}</div>
         </section>
         <div className="side-stack">
