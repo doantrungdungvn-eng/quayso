@@ -59,3 +59,16 @@ Cột tùy chọn:
 ## Trạng thái MVP — đọc trước khi dùng sự kiện thật
 
 Bản source cung cấp luồng UI và chức năng MVP. PIN quản trị hiện lưu ở trình duyệt và chỉ để demo; nó không phải xác thực bảo mật. Khi có Supabase, việc bật biến môi trường không tự động cấu hình quyền truy cập. Hãy hoàn tất Auth/RLS/API phía server, kiểm thử tải và quy trình xử lý dữ liệu trước sự kiện thật. Không dùng dữ liệu khách hàng thật trên demo công khai chưa được bảo vệ.
+
+
+## Đồng bộ đăng ký từ điện thoại sang website
+
+Bản cập nhật thêm API server-side để ghi đăng ký từ QR vào Supabase và chỉ hiện thông báo **ĐĂNG KÝ THÀNH CÔNG** sau khi lưu thành công.
+
+Thêm biến trên Vercel → Settings → Environment Variables, chọn Production rồi Redeploy:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (có thể giữ lại cho các phần khác)
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only, tuyệt đối không đặt tên `NEXT_PUBLIC_*`
+- `ADMIN_PIN` — PIN máy chủ dùng để bảo vệ API đồng bộ; phải trùng PIN quản trị bạn nhập trong ứng dụng. Đổi khỏi giá trị ví dụ.
+
+Sau khi triển khai, khách quét QR đăng ký sẽ ghi vào cơ sở dữ liệu chung. Trên thiết bị quản trị, vào mục Cài đặt và bấm **Đồng bộ từ Supabase** để tải dữ liệu mới. Không chia sẻ service-role key. Đây là bản MVP; trước sự kiện chính thức nên bổ sung xác thực quản trị đầy đủ và giới hạn tần suất gửi đăng ký.

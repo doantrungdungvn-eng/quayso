@@ -111,25 +111,58 @@ export default function LuckyWheelApp() {
     ctx.beginPath();ctx.arc(size/2,size/2,56,0,Math.PI*2);ctx.fillStyle="#f6d77e";ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=8;ctx.stroke();
   }
   async function refreshFromSupabase() {
-    if(!supabase){showNotice("Chưa cấu hình Supabase. Dữ liệu hiện được lưu trên trình duyệt này.","info");return;}
-    const [c,p,w]=await Promise.all([
-      supabase.from("lwv_customers").select("*").order("created_at",{ascending:false}),
-      supabase.from("lwv_prizes").select("*"),
-      supabase.from("lwv_winners").select("*").order("won_at",{ascending:false})
-    ]);
-    if(c.error||p.error||w.error){showNotice("Không tải được dữ liệu Supabase. Kiểm tra SQL và quyền truy cập.","error");return;}
-    setCustomers(c.data||[]);setPrizes(p.data?.length?p.data:defaultPrizes);setWinners(w.data||[]);
-    showNotice("Đã đồng bộ dữ liệu từ Supabase.");
+    if(!supabaseConfigured){showNotice("Chưa cấu hình Supabase. Dữ liệu chỉ nằm trên trình duyệt này.","error");return;}
+    try {
+      const response = await fetch("/api/admin/sync", {
+        method: "GET",
+        headers: { "x-admin-pin": adminPin || "1234" },
+        cache: "no-store"
+      });
+      const result = await response.json();
+      if(!response.ok) {
+        showNotice(result.error || "Không đồng bộ được dữ liệu. Kiểm tra ADMIN_PIN và SUPABASE_SERVICE_ROLE_KEY trên Vercel.","error");
+        return;
+      }
+      const cs = (result.customers || []) as Customer[];
+      const ps = (result.prizes || []) as Prize[];
+      const ws = (result.winners || []) as Winner[];
+      setCustomers(cs); setPrizes(ps.length ? ps : defaultPrizes); setWinners(ws);
+      saveLocal("lwv_customers",cs); saveLocal("lwv_prizes",ps.length ? ps : defaultPrizes); saveLocal("lwv_winners",ws);
+      showNotice(`Đã đồng bộ dữ liệu từ Supabase: ${cs.length} khách hàng, ${ws.length} lượt trúng.`);
+    } catch {
+      showNotice("Không kết nối được máy chủ đồng bộ. Vui lòng thử lại.","error");
+    }
   }
   async function submitRegistration(e:React.FormEvent) {
     e.preventDefault();
     if(!form.consent){showNotice("Vui lòng xác nhận đồng ý tham gia và xử lý dữ liệu theo thông báo của sự kiện.","error");return;}
     if(!form.full_name.trim()||!form.phone.trim()){showNotice("Vui lòng nhập họ tên và số điện thoại.","error");return;}
-    if(customers.some(c=>c.phone.replace(/\s/g,"")===form.phone.replace(/\s/g,""))){showNotice("Số điện thoại này đã đăng ký. Vui lòng liên hệ ban tổ chức nếu cần cập nhật.","error");return;}
+    const normalizedPhone = form.phone.replace(/\s/g,"");
+    if(customers.some(c=>c.phone.replace(/\s/g,"")===normalizedPhone)){showNotice("Số điện thoại này đã đăng ký trên thiết bị này. Vui lòng liên hệ ban tổ chức nếu cần cập nhật.","error");return;}
     const c:Customer={id:id(),full_name:form.full_name.trim(),phone:form.phone.trim(),customer_code:form.customer_code.trim(),advisor_name:form.advisor_name.trim(),agency:form.agency.trim(),survey_rating:Number(form.survey_rating),survey_interest:form.survey_interest,survey_feedback:form.survey_feedback.trim(),consent:true,eligible:true,created_at:now()};
-    const next=[c,...customers];setCustomers(next);await persistAll(next,prizes,winners);
+    if (!supabaseConfigured) {
+      showNotice("Website chưa kết nối cơ sở dữ liệu chung. Đăng ký chưa được lưu; vui lòng báo ban tổ chức.","error");
+      return;
+    }
+    try {
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(c)
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        showNotice(result.error || "Chưa lưu được đăng ký vào hệ thống. Vui lòng thử lại hoặc báo ban tổ chức.","error");
+        return;
+      }
+    } catch {
+      showNotice("Không kết nối được máy chủ. Đăng ký chưa được xác nhận; vui lòng thử lại.","error");
+      return;
+    }
+    const next=[c,...customers];setCustomers(next);saveLocal("lwv_customers",next);
     setForm({full_name:"",phone:"",customer_code:"",advisor_name:"",agency:"",survey_rating:"5",survey_interest:"Giải pháp sức khỏe",survey_feedback:"",consent:false});
-    showNotice("Đăng ký thành công! Ban tổ chức sẽ xác nhận điều kiện tham gia quay thưởng.");
+    showNotice("🎉 ĐĂNG KÝ THÀNH CÔNG! Thông tin đã được lưu vào hệ thống. Ban tổ chức sẽ xác nhận điều kiện tham gia quay thưởng.");
+    if (typeof window !== "undefined") window.scrollTo({top:0,behavior:"smooth"});
   }
   function randomIndex(n:number) {
     if(n<=1)return 0;

@@ -64,3 +64,13 @@ html, body {
     width: 100%;
   }
 }
+
+/* Make successful registration result prominent */
+.notice.success {
+  border: 1px solid #a7dfc4;
+  background: #eaf8f0;
+  color: #075d43;
+  font-weight: 700;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
