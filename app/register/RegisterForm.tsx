@@ -37,7 +37,7 @@ export default function RegisterPage() {
   }
 
   return <main className="app-shell">
-    <header className="topbar"><div className="brand"><div className="brand-mark">✦</div><div><h1>LUCKY WHEEL <span style={{ color: "#e9c76d" }}>VIP</span></h1><p>Đăng ký tham gia sự kiện</p></div></div></header>
+    <header className="topbar"><div className="brand"><div className="brand-mark">✦</div><div><h1>VÒNG QUAY MAY MẮN</h1><p>Đăng ký tham gia sự kiện</p></div></div></header>
     <div className="hero"><div><div className="eyebrow">Customer appreciation event</div><h2>Đăng ký tham gia</h2><p>Vui lòng điền thông tin và hoàn thành khảo sát.</p></div></div>
     <div className="notice success" style={{ marginBottom: 16 }}><b>{eventName}</b>{eventDate && <> · Ngày {new Date(`${eventDate}T00:00:00`).toLocaleDateString("vi-VN")}</>}{eventTime && <> · {eventTime}</>}</div>
     {message && <div className={`notice ${message.error ? "error" : "success"}`} style={{ marginBottom: 16 }} role="status">{message.text}</div>}

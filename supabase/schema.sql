@@ -1,4 +1,4 @@
--- Lucky Wheel VIP schema
+-- Vòng Quay May Mắn schema
 -- IMPORTANT: This starter schema is intentionally conservative. Do not enable anonymous write access
 -- for a real event with personal data. Add Supabase Auth, server-side APIs and role-based RLS policies
 -- before production. The sample client-side app can operate in local demo mode without this schema.

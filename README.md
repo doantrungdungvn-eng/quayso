@@ -1,4 +1,4 @@
-# Lucky Wheel VIP — Tri Ân Khách Hàng VIP
+# Vòng Quay May Mắn — Tri Ân Khách Hàng VIP
 
 Ứng dụng Next.js dành cho sự kiện tri ân khách hàng: đăng ký bằng QR, khảo sát, import Excel, vòng quay 7 giây, nhiều giải thưởng, lưu lịch sử người trúng và xuất Excel.
 
