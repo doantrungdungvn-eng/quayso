@@ -67,7 +67,7 @@ export default function LuckyWheelApp() {
 
   const eligible=useMemo(()=>customers.filter(c=>c.eligible!==false && !winners.some(w=>w.customer_id===c.id)),[customers,winners]);
   const activePrizes=useMemo(()=>prizes.filter(p=>p.active && p.won<p.quantity),[prizes]);
-  const currentPrize=prizes.find(p=>p.id===selectedPrize);
+  const currentPrize=prizes.find(p=>p.id===selectedPrize && p.active && p.won<p.quantity) || prizes.find(p=>p.active && p.won<p.quantity);
   const filteredCustomers=useMemo(()=>customers.filter(c=>[c.full_name,c.phone,c.advisor_name,c.customer_code].some(x=>safeText(x).toLowerCase().includes(search.toLowerCase()))),[customers,search]);
   const filteredWinners=useMemo(()=>winners.filter(w=>[w.full_name,w.phone,w.advisor_name,w.prize_name].some(x=>safeText(x).toLowerCase().includes(search.toLowerCase()))),[winners,search]);
 
@@ -160,6 +160,7 @@ export default function LuckyWheelApp() {
       const ps = (result.prizes || []) as Prize[];
       const ws = (result.winners || []) as Winner[];
       setCustomers(cs); setPrizes(ps); setPrizeEdits(Object.fromEntries(ps.map((p:Prize)=>[p.id,{name:p.name,quantity:String(p.quantity)}]))); setWinners(ws);
+      setSelectedPrize(current => ps.some((p:Prize)=>p.id===current && p.active && p.won<p.quantity) ? current : (ps.find((p:Prize)=>p.active && p.won<p.quantity)?.id || ""));
       saveLocal("lwv_customers",cs); saveLocal("lwv_prizes",ps); saveLocal("lwv_winners",ws);
       showNotice(`Đã đồng bộ dữ liệu từ Supabase: ${cs.length} khách hàng, ${ws.length} lượt trúng.`);
     } catch {
@@ -233,6 +234,7 @@ export default function LuckyWheelApp() {
       spinTimer.current=setTimeout(async()=>{
         try {
           const prize=currentPrize;
+          if(!prize) throw new Error("Không có giải thưởng đang hoạt động. Vào Cài đặt kiểm tra giải thưởng.");
           const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
           // Persist the result server-side so Supabase RLS cannot silently block browser writes.
           if(supabaseConfigured){
@@ -251,7 +253,7 @@ export default function LuckyWheelApp() {
           confetti({particleCount:160,spread:90,origin:{y:.6},colors:["#d9a441","#ffffff","#0b694e","#d95d39"]});
         } catch(err) {
           console.error("Spin result failed",err);
-          showNotice("Vòng quay đã chạy nhưng không lưu được kết quả. Hãy kiểm tra kết nối và thử lại.","error");
+          showNotice(err instanceof Error ? `Không lưu được kết quả: ${err.message}` : "Vòng quay đã chạy nhưng không lưu được kết quả. Hãy kiểm tra kết nối và thử lại.","error");
         } finally { setSpinning(false); }
       },7000);
     } catch(err) {
@@ -322,7 +324,9 @@ export default function LuckyWheelApp() {
         if(!response.ok)throw new Error(result.error||"Không thể Reset All trên Supabase.");
       }
       const nextP=prizes.map(p=>({...p,won:0}));
-      setWinners([]);setPrizes(nextP);saveLocal("lwv_winners",[]);saveLocal("lwv_prizes",nextP);
+      setWinners([]);setPrizes(nextP);
+      setSelectedPrize(current => nextP.some(p=>p.id===current && p.active) ? current : (nextP.find(p=>p.active)?.id || ""));
+      saveLocal("lwv_winners",[]);saveLocal("lwv_prizes",nextP);
       await persistAll(customers,nextP,[]);
       showNotice("Reset All thành công: toàn bộ khách được mở lại quyền quay và số lượng giải đã trao về 0.");
     } catch(error){showNotice(error instanceof Error?error.message:"Không thể Reset All.","error");}
@@ -354,7 +358,7 @@ export default function LuckyWheelApp() {
         </section>
         <div className="side-stack">
           <section className="panel"><div className="panel-head"><div><h3><Trophy size={17} style={{display:"inline",verticalAlign:"-3px",marginRight:7,color:"#b88b30"}}/>Cơ cấu giải thưởng</h3><p>Chọn giải trước khi bắt đầu quay.</p></div></div>
-            <div className="field"><label>Giải thưởng đang quay</label><select value={selectedPrize} onChange={e=>setSelectedPrize(e.target.value)}>{prizes.filter(p=>p.active&&p.won<p.quantity).map(p=><option key={p.id} value={p.id}>{p.name} · còn {p.quantity-p.won}</option>)}</select></div>
+            <div className="field"><label>Giải thưởng đang quay</label><select value={currentPrize?.id || ""} onChange={e=>setSelectedPrize(e.target.value)}>{prizes.filter(p=>p.active&&p.won<p.quantity).map(p=><option key={p.id} value={p.id}>{p.name} · còn {p.quantity-p.won}</option>)}</select></div>
             <div className="prize-list" style={{marginTop:13}}>{prizes.map(p=><div className="prize-row" key={p.id}><div><div className="prize-name">{p.name}</div><div className="prize-meta">Đã trao {p.won}/{p.quantity} giải</div></div><span className="prize-count">{Math.max(0,p.quantity-p.won)} còn lại</span></div>)}</div>
           </section>
           <section className="panel"><div className="panel-head"><div><h3><ShieldCheck size={17} style={{display:"inline",verticalAlign:"-3px",marginRight:7,color:"#0b775a"}}/>Quản trị quay thưởng</h3><p>Chỉ người quản trị được phép bắt đầu quay.</p></div></div>
