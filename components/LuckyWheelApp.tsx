@@ -258,11 +258,17 @@ export default function LuckyWheelApp() {
         try {
           const prize=currentPrize;
           const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
+          // Persist through a server-side endpoint so RLS cannot silently block the result.
+          if(supabaseConfigured){
+            const response=await fetch("/api/admin/winners",{method:"POST",headers:{"Content-Type":"application/json","x-admin-pin":adminPin},body:JSON.stringify({winner:win,prizeId:prize.id}),cache:"no-store"});
+            const result=await response.json().catch(()=>({}));
+            if(!response.ok) throw new Error(result.error||"Không lưu được kết quả trúng thưởng lên Supabase.");
+          }
           const nextW=[win,...winners];const nextP=prizes.map(p=>p.id===prize.id?{...p,won:p.won+1}:p);
           setWinners(nextW);setPrizes(nextP);setWinnerModal(win);
           const nextAvailable=nextP.map((p,index)=>({p,index,rank:prizeRank(p.name,index)})).sort((a,b)=>a.rank-b.rank||a.index-b.index).map(x=>x.p).find(p=>p.active&&p.won<p.quantity);
           setSelectedPrize(nextAvailable?.id||"");
-          await persistAll(customers,nextP,nextW);
+          saveLocal("lwv_winners",nextW);saveLocal("lwv_prizes",nextP);
           confetti({particleCount:160,spread:90,origin:{y:.6},colors:["#d9a441","#ffffff","#0b694e","#d95d39"]});
         } catch(err) {
           console.error("Spin result failed",err);
