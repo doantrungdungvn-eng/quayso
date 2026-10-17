@@ -193,32 +193,49 @@ export default function LuckyWheelApp() {
   }
   function randomIndex(n:number) {
     if(n<=1)return 0;
-    // crypto.getRandomValues is preferred for unbiased selection.
-    const arr=new Uint32Array(1);const max=0x100000000-(0x100000000%n);
-    let x=0;do{crypto.getRandomValues(arr);x=arr[0];}while(x>=max);
-    return x%n;
+    // Use cryptographic randomness when available, with a safe browser fallback.
+    try {
+      if(typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+        const arr=new Uint32Array(1);const max=0x100000000-(0x100000000%n);
+        let x=0;do{crypto.getRandomValues(arr);x=arr[0];}while(x>=max);
+        return x%n;
+      }
+    } catch (err) { console.warn("Secure random unavailable; using fallback", err); }
+    return Math.floor(Math.random()*n);
   }
   async function spin() {
     if(spinning)return;
     if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng.","error");return;}
     if(!eligible.length){showNotice("Chưa có khách hàng đủ điều kiện hoặc tất cả khách đã trúng thưởng.","error");return;}
     if(!currentPrize||!currentPrize.active||currentPrize.won>=currentPrize.quantity){showNotice("Giải thưởng đã hết số lượng. Hãy chọn giải khác.","error");return;}
-    const idx=randomIndex(eligible.length);const picked=eligible[idx];
-    const arc=360/eligible.length;
-    // Canvas index 0 begins at 12 o'clock. Stop the selected segment at the pointer after 7 seconds.
-    const targetOffset=360-(idx*arc+arc/2);
-    const normalized=((rotation%360)+360)%360;
-    const delta=((targetOffset-normalized)%360+360)%360;
-    const nextRotation=rotation+360*7+delta;
-    setSpinning(true);setRotation(nextRotation);
-    spinTimer.current=setTimeout(async()=>{
-      const prize=currentPrize;
-      const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
-      const nextW=[win,...winners];const nextP=prizes.map(p=>p.id===prize.id?{...p,won:p.won+1}:p);
-      setWinners(nextW);setPrizes(nextP);setSpinning(false);setWinnerModal(win);
-      await persistAll(customers,nextP,nextW);
-      confetti({particleCount:160,spread:90,origin:{y:.6},colors:["#d9a441","#ffffff","#0b694e","#d95d39"]});
-    },7000);
+    try {
+      const idx=randomIndex(eligible.length);const picked=eligible[idx];
+      const arc=360/eligible.length;
+      // Canvas segment 0 starts at 12 o'clock; rotate to place the chosen segment under the pointer.
+      const targetOffset=360-(idx*arc+arc/2);
+      const normalized=((rotation%360)+360)%360;
+      const delta=((targetOffset-normalized)%360+360)%360;
+      const nextRotation=rotation+360*7+delta;
+      if(spinTimer.current)clearTimeout(spinTimer.current);
+      setSpinning(true);setRotation(nextRotation);
+      spinTimer.current=setTimeout(async()=>{
+        try {
+          const prize=currentPrize;
+          const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
+          const nextW=[win,...winners];const nextP=prizes.map(p=>p.id===prize.id?{...p,won:p.won+1}:p);
+          setWinners(nextW);setPrizes(nextP);setWinnerModal(win);
+          await persistAll(customers,nextP,nextW);
+          confetti({particleCount:160,spread:90,origin:{y:.6},colors:["#d9a441","#ffffff","#0b694e","#d95d39"]});
+        } catch(err) {
+          console.error("Spin result failed",err);
+          showNotice("Vòng quay đã chạy nhưng không lưu được kết quả. Hãy kiểm tra kết nối và thử lại.","error");
+        } finally { setSpinning(false); }
+      },7000);
+    } catch(err) {
+      console.error("Spin failed",err);
+      setSpinning(false);
+      showNotice("Không thể bắt đầu quay. Hãy tải lại trang và thử lại.","error");
+    }
   }
   function exportCustomers() {
     downloadWorkbook(customers.map((c,i)=>({"STT":i+1,"Họ và tên":c.full_name,"Số điện thoại":c.phone,"Mã khách hàng":c.customer_code||"","TVV mời":c.advisor_name||"","Đơn vị/nhóm":c.agency||"","Điểm hài lòng":c.survey_rating??"","Quan tâm":c.survey_interest||"","Góp ý":c.survey_feedback||"","Đủ điều kiện":c.eligible===false?"Không":"Có","Ngày đăng ký":new Date(c.created_at).toLocaleString("vi-VN")})),"danh-sach-khach-hang.xlsx");
