@@ -17,6 +17,9 @@ create table if not exists public.lwv_customers (
   survey_feedback text,
   consent boolean default false,
   eligible boolean default true,
+  event_name text,
+  event_date date,
+  event_time text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -51,3 +54,8 @@ alter table public.lwv_winners enable row level security;
 -- No anonymous policies are created intentionally. The browser will show a Supabase permissions
 -- warning until secure authenticated policies / server-side access are configured.
 -- Never paste SUPABASE_SERVICE_ROLE_KEY into NEXT_PUBLIC_* variables or client-side code.
+
+-- Migration for existing projects: run these statements once if lwv_customers already exists.
+alter table public.lwv_customers add column if not exists event_name text;
+alter table public.lwv_customers add column if not exists event_date date;
+alter table public.lwv_customers add column if not exists event_time text;

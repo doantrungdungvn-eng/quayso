@@ -35,7 +35,10 @@ export async function POST(request: Request) {
     survey_rating: Number(body.survey_rating || 5),
     survey_interest: String(body.survey_interest || "").trim() || null,
     survey_feedback: String(body.survey_feedback || "").trim() || null,
-    consent: true, eligible: true
+    consent: true, eligible: true,
+    event_name: String(body.event_name || "").trim() || null,
+    event_date: String(body.event_date || "").trim() || null,
+    event_time: String(body.event_time || "").trim() || null
   };
   const { error } = await supabase.from("lwv_customers").insert(row);
   if (error) {

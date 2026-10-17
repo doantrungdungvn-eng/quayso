@@ -11,6 +11,9 @@ export type Customer = {
   consent?: boolean;
   eligible?: boolean;
   created_at: string;
+  event_name?: string;
+  event_date?: string;
+  event_time?: string;
 };
 export type Prize = { id: string; name: string; quantity: number; won: number; active: boolean };
 export type Winner = { id: string; customer_id: string; full_name: string; phone: string; advisor_name: string; prize_name: string; won_at: string; customer_code?: string };

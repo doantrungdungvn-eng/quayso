@@ -72,3 +72,22 @@ Thêm biến trên Vercel → Settings → Environment Variables, chọn Product
 - `ADMIN_PIN` — PIN máy chủ dùng để bảo vệ API đồng bộ. Phải trùng chính xác với PIN trong mục **Cài đặt → PIN quản trị trên thiết bị**. Nên đặt một mã riêng, không dùng PIN mặc định `1234`.
 
 Sau khi triển khai, khách quét QR đăng ký sẽ ghi vào cơ sở dữ liệu chung. Trên thiết bị quản trị, website tự tải dữ liệu từ Supabase khi mở các trang quản trị; có thể vào mục Cài đặt và bấm **Đồng bộ từ Supabase** để tải lại thủ công. Nếu đồng bộ báo 401, hãy kiểm tra `ADMIN_PIN` trên Vercel có trùng PIN đã lưu trong mục Cài đặt trên trình duyệt quản trị hay không. Không chia sẻ service-role key. Đây là bản MVP; trước sự kiện chính thức nên bổ sung xác thực quản trị đầy đủ và giới hạn tần suất gửi đăng ký.
+
+
+## Tách trang quản trị và QR đăng ký theo ngày/giờ sự kiện
+
+- Trang quản trị: mở `https://YOUR-DOMAIN/?page=admin` (hoặc domain gốc). Trang này có menu quản trị, cấu hình sự kiện và tạo QR.
+- Trang đăng ký công khai: dùng link QR tạo trong **Cài đặt → QR riêng cho sự kiện**. Trang công khai chỉ hiển thị form đăng ký, không hiển thị menu quản trị hay bảng điều khiển.
+- QR chứa tên sự kiện, ngày và giờ đã cài đặt; form hiển thị thông tin này và gửi metadata cùng đăng ký.
+
+### Cập nhật database đã tồn tại
+
+Vì bảng `lwv_customers` có thể đã được tạo trước khi thêm thông tin sự kiện, hãy mở Supabase → SQL Editor và chạy:
+
+```sql
+alter table public.lwv_customers add column if not exists event_name text;
+alter table public.lwv_customers add column if not exists event_date date;
+alter table public.lwv_customers add column if not exists event_time text;
+```
+
+Sau đó đẩy mã nguồn lên GitHub và chờ Vercel deploy thành công. Cấu hình ngày/giờ trên trang quản trị được mã hóa vào URL QR; mỗi link QR có thể dùng độc lập cho sự kiện tương ứng.
