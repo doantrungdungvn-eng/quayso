@@ -41,6 +41,7 @@ export default function LuckyWheelApp() {
   const [loaded,setLoaded]=useState(false);
   const [search,setSearch]=useState("");
   const [customerEventFilter,setCustomerEventFilter]=useState("all");
+  const [wheelEventFilter,setWheelEventFilter]=useState("current");
   const [notice,setNotice]=useState<{type:"success"|"error"|"info";text:string}|null>(null);
   const [spinning,setSpinning]=useState(false);
   const [rotation,setRotation]=useState(0);
@@ -70,7 +71,12 @@ export default function LuckyWheelApp() {
   const activePrizes=useMemo(()=>prizes.filter(p=>p.active && p.won<p.quantity),[prizes]);
   const currentPrize=prizes.find(p=>p.id===selectedPrize);
   const eventKey=(c:Customer)=>`${safeText(c.event_name)||"Chưa phân loại"} | ${safeText(c.event_date)||"Chưa có ngày"} | ${safeText(c.event_time)||"Chưa có giờ"}`;
-  const customerEventOptions=useMemo(()=>Array.from(new Set(customers.map(eventKey))).sort((a,b)=>a.localeCompare(b,"vi")),[customers]);
+  const customerEventOptions=useMemo(()=>Array.from(new Set<string>(customers.map(eventKey))).sort((a,b)=>a.localeCompare(b,"vi")),[customers]);
+  const currentEventKey=`${safeText(eventName)||"Chưa phân loại"} | ${safeText(eventDate)||"Chưa có ngày"} | ${safeText(eventTime)||"Chưa có giờ"}`;
+  const wheelEventOptions=useMemo(()=>Array.from(new Set<string>([currentEventKey,...customerEventOptions])).sort((a,b)=>a.localeCompare(b,"vi")),[currentEventKey,customerEventOptions]);
+  const selectedWheelEvent=wheelEventFilter==="current"?currentEventKey:wheelEventFilter;
+  const wheelEligible=useMemo(()=>eligible.filter(c=>eventKey(c)===selectedWheelEvent),[eligible,selectedWheelEvent,customers]);
+  const wheelWinners=useMemo(()=>winners.filter(w=>{const c=customers.find(x=>x.id===w.customer_id);return c&&eventKey(c)===selectedWheelEvent;}),[winners,customers,selectedWheelEvent]);
   const filteredCustomers=useMemo(()=>customers.filter(c=>(customerEventFilter==="all"||eventKey(c)===customerEventFilter)&&[c.full_name,c.phone,c.advisor_name,c.customer_code].some(x=>safeText(x).toLowerCase().includes(search.toLowerCase()))),[customers,search,customerEventFilter]);
   const filteredWinners=useMemo(()=>winners.filter(w=>[w.full_name,w.phone,w.advisor_name,w.prize_name].some(x=>safeText(x).toLowerCase().includes(search.toLowerCase()))),[winners,search]);
 
@@ -124,14 +130,14 @@ export default function LuckyWheelApp() {
     if(eventTime) url.searchParams.set("eventTime",eventTime);
     setRegistrationUrl(url.toString());
   },[loaded,eventName,eventDate,eventTime]);
-  useEffect(()=>{if(!loaded)return;drawWheel();},[loaded,eligible,rotation]);
+  useEffect(()=>{if(!loaded)return;drawWheel();},[loaded,wheelEligible,rotation]);
   useEffect(()=>()=>{if(spinTimer.current)clearTimeout(spinTimer.current);},[]);
 
   function drawWheel() {
     const canvas=canvasRef.current; if(!canvas) return;
     const size=1000; canvas.width=size; canvas.height=size;
     const ctx=canvas.getContext("2d"); if(!ctx)return;
-    const list=eligible.length?eligible:[{id:"empty",full_name:"Chưa có khách",phone:"",created_at:now()} as Customer];
+    const list=wheelEligible.length?wheelEligible:[{id:"empty",full_name:"Chưa có khách trong sự kiện này",phone:"",created_at:now()} as Customer];
     const arc=Math.PI*2/list.length;
     ctx.clearRect(0,0,size,size);
     list.forEach((c,i)=>{
@@ -221,7 +227,7 @@ export default function LuckyWheelApp() {
   async function spin() {
     if(spinning)return;
     if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng. Hãy thoát toàn màn hình để đăng nhập nếu cần.","error");return;}
-    if(!eligible.length){showNotice("Chưa có khách hàng đủ điều kiện hoặc tất cả khách đã trúng thưởng.","error");return;}
+    if(!wheelEligible.length){showNotice("Sự kiện đang chọn chưa có khách hàng đủ điều kiện hoặc tất cả khách đã trúng thưởng.","error");return;}
     // In fullscreen, the prize selector is hidden. If the saved selection is stale
     // (for example after deleting/editing prizes), automatically use the first available prize.
     const prizeToSpin = currentPrize && currentPrize.active && currentPrize.won < currentPrize.quantity
@@ -230,8 +236,8 @@ export default function LuckyWheelApp() {
     if(!prizeToSpin){showNotice("Không còn giải thưởng đang hoạt động hoặc tất cả giải đã hết số lượng. Vào Cài đặt để kiểm tra giải thưởng.","error");return;}
     if(prizeToSpin.id !== selectedPrize) setSelectedPrize(prizeToSpin.id);
     try {
-      const idx=randomIndex(eligible.length);const picked=eligible[idx];
-      const arc=360/eligible.length;
+      const idx=randomIndex(wheelEligible.length);const picked=wheelEligible[idx];
+      const arc=360/wheelEligible.length;
       // Canvas segment 0 starts at 12 o'clock; rotate to place the chosen segment under the pointer.
       const targetOffset=360-(idx*arc+arc/2);
       const normalized=((rotation%360)+360)%360;
@@ -329,9 +335,9 @@ export default function LuckyWheelApp() {
 
       {tab==="wheel"&&<div className={`wheel-layout ${wheelFullscreen?"wheel-fullscreen-active":""}`}>
         <section className={`panel wheel-panel ${wheelFullscreen?"wheel-fullscreen-panel":""}`}>
-          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>LUCKY DRAW</h3><p>{eligible.length} khách hàng trong vòng quay</p></div><div className="toolbar"><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>setWheelFullscreen(v=>!v)}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
+          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>VÒNG QUAY MAY MẮN</h3><p>{wheelEligible.length} khách hàng đủ điều kiện · {selectedWheelEvent}</p></div><div className="toolbar"><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button><div className="field" style={{minWidth:260,margin:0}}><label>Chọn sự kiện để quay</label><select value={wheelEventFilter==="current"?currentEventKey:wheelEventFilter} onChange={e=>setWheelEventFilter(e.target.value)}>{wheelEventOptions.map(ev=><option key={ev} value={ev}>{ev} · {customers.filter(c=>eventKey(c)===ev&&c.eligible!==false&&!winners.some(w=>w.customer_id===c.id)).length} khách đủ điều kiện</option>)}</select></div><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>setWheelFullscreen(v=>!v)}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
           <div className="wheel-wrap" ref={wheelRef} style={{width:wheelFullscreen?`min(88vmin, ${620*wheelZoom}px)`:`min(100%, ${500*wheelZoom}px)`,maxWidth:"100%"}}><div className="wheel-pointer"/><div className="wheel" style={{transform:`rotate(${rotation}deg)`}}><canvas ref={canvasRef}/></div><div className="wheel-center">✦</div></div>
-          <button className="spin-btn" onClick={spin} disabled={spinning||!eligible.length||!activePrizes.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
+          <button className="spin-btn" onClick={spin} disabled={spinning||!wheelEligible.length||!activePrizes.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
           <div className="wheel-caption">{spinning?"Chúc bạn may mắn! Đang xác định kết quả...":"Kết quả ngẫu nhiên · Mỗi khách chỉ trúng một lần"}</div>
         </section>
         <div className="side-stack">
@@ -342,9 +348,9 @@ export default function LuckyWheelApp() {
           <section className="panel"><div className="panel-head"><div><h3><ShieldCheck size={17} style={{display:"inline",verticalAlign:"-3px",marginRight:7,color:"#0b775a"}}/>Quản trị quay thưởng</h3><p>Chỉ người quản trị được phép bắt đầu quay.</p></div></div>
             {!isAdmin?<form onSubmit={doLogin}><div className="field"><label>PIN quản trị</label><input value={pinInput} onChange={e=>setPinInput(e.target.value)} type="password" inputMode="numeric" placeholder="Nhập PIN quản trị" required/></div><button className="primary-btn full-btn" style={{marginTop:12}}>Đăng nhập quản trị</button><p className="small-muted" style={{marginTop:10}}>Demo dùng PIN phía trình duyệt. Trước khi chạy sự kiện thật, hãy triển khai xác thực server và phân quyền Supabase theo hướng dẫn README.</p></form>:<><div className="notice success">Đã đăng nhập quản trị trên thiết bị này.</div><button className="secondary-btn full-btn" onClick={()=>{setIsAdmin(false);showNotice("Đã đăng xuất quản trị.","info");}}>Đăng xuất</button></>}
           </section>
-          <section className="panel"><div className="panel-head"><div><h3>Kết quả gần nhất</h3><p>{winners.length} khách hàng đã trúng thưởng</p></div><button className="secondary-btn" onClick={()=>setTab("winners")}>Xem tất cả</button></div>
-            {winners.slice(0,3).map(w=><div className="prize-row" key={w.id}><div><div className="prize-name">{w.full_name}</div><div className="prize-meta">{w.prize_name}</div></div><Trophy size={17} color="#b88b30"/></div>)}
-            {!winners.length&&<div className="empty">Chưa có kết quả. Chúc sự kiện thành công!</div>}
+          <section className="panel"><div className="panel-head"><div><h3>Kết quả gần nhất</h3><p>{wheelWinners.length} khách hàng đã trúng thưởng trong sự kiện này</p></div><button className="secondary-btn" onClick={()=>setTab("winners")}>Xem tất cả</button></div>
+            {wheelWinners.slice(0,3).map(w=><div className="prize-row" key={w.id}><div><div className="prize-name">{w.full_name}</div><div className="prize-meta">{w.prize_name}</div></div><Trophy size={17} color="#b88b30"/></div>)}
+            {!wheelWinners.length&&<div className="empty">Sự kiện này chưa có kết quả trúng thưởng.</div>}
           </section>
         </div>
       </div>}
