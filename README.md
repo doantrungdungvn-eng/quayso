@@ -69,6 +69,6 @@ Thêm biến trên Vercel → Settings → Environment Variables, chọn Product
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (có thể giữ lại cho các phần khác)
 - `SUPABASE_SERVICE_ROLE_KEY` — server-only, tuyệt đối không đặt tên `NEXT_PUBLIC_*`
-- `ADMIN_PIN` — PIN máy chủ dùng để bảo vệ API đồng bộ; phải trùng PIN quản trị bạn nhập trong ứng dụng. Đổi khỏi giá trị ví dụ.
+- `ADMIN_PIN` — PIN máy chủ dùng để bảo vệ API đồng bộ. Phải trùng chính xác với PIN trong mục **Cài đặt → PIN quản trị trên thiết bị**. Nên đặt một mã riêng, không dùng PIN mặc định `1234`.
 
-Sau khi triển khai, khách quét QR đăng ký sẽ ghi vào cơ sở dữ liệu chung. Trên thiết bị quản trị, vào mục Cài đặt và bấm **Đồng bộ từ Supabase** để tải dữ liệu mới. Không chia sẻ service-role key. Đây là bản MVP; trước sự kiện chính thức nên bổ sung xác thực quản trị đầy đủ và giới hạn tần suất gửi đăng ký.
+Sau khi triển khai, khách quét QR đăng ký sẽ ghi vào cơ sở dữ liệu chung. Trên thiết bị quản trị, website tự tải dữ liệu từ Supabase khi mở các trang quản trị; có thể vào mục Cài đặt và bấm **Đồng bộ từ Supabase** để tải lại thủ công. Nếu đồng bộ báo 401, hãy kiểm tra `ADMIN_PIN` trên Vercel có trùng PIN đã lưu trong mục Cài đặt trên trình duyệt quản trị hay không. Không chia sẻ service-role key. Đây là bản MVP; trước sự kiện chính thức nên bổ sung xác thực quản trị đầy đủ và giới hạn tần suất gửi đăng ký.

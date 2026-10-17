@@ -20,10 +20,10 @@ export async function POST(request: Request) {
   }
 
   const supabase = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const normalizedPhone = phone.replace(/\\s/g, "");
+  const normalizedPhone = phone.replace(/\s/g, "");
   const { data: existing, error: lookupError } = await supabase.from("lwv_customers").select("id,phone");
   if (lookupError) return NextResponse.json({ error: "Không kiểm tra được dữ liệu khách hàng. Kiểm tra bảng lwv_customers." }, { status: 500 });
-  if ((existing || []).some((row: {phone:string}) => String(row.phone || "").replace(/\\s/g, "") === normalizedPhone)) {
+  if ((existing || []).some((row: {phone:string}) => String(row.phone || "").replace(/\s/g, "") === normalizedPhone)) {
     return NextResponse.json({ error: "Số điện thoại này đã đăng ký. Vui lòng liên hệ ban tổ chức nếu cần cập nhật." }, { status: 409 });
   }
 

@@ -133,6 +133,14 @@ export default function LuckyWheelApp() {
       showNotice("Không kết nối được máy chủ đồng bộ. Vui lòng thử lại.","error");
     }
   }
+  // Load shared data automatically on admin-facing pages; QR registration stays public.
+  useEffect(()=>{
+    if(!loaded || !supabaseConfigured || !adminPin || tab === "register") return;
+    void refreshFromSupabase();
+    // Refresh when navigating between admin tabs or after the saved PIN is loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[loaded,adminPin,tab]);
+
   async function submitRegistration(e:React.FormEvent) {
     e.preventDefault();
     if(!form.consent){showNotice("Vui lòng xác nhận đồng ý tham gia và xử lý dữ liệu theo thông báo của sự kiện.","error");return;}
