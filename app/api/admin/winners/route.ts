@@ -47,11 +47,18 @@ export async function DELETE(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) return NextResponse.json({ error: "Máy chủ chưa cấu hình Supabase service key." }, { status: 503 });
-  let body: { winnerId?: string };
+  let body: { winnerId?: string; resetAll?: boolean };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Dữ liệu không hợp lệ." }, { status: 400 }); }
+  const supabase = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (body.resetAll === true) {
+    const { error: deleteAllError } = await supabase.from("lwv_winners").delete().not("id", "is", null);
+    if (deleteAllError) return NextResponse.json({ error: `Không thể xóa toàn bộ kết quả trên Supabase: ${deleteAllError.message}` }, { status: 500 });
+    const { error: resetPrizesError } = await supabase.from("lwv_prizes").update({ won: 0 }).not("id", "is", null);
+    if (resetPrizesError) return NextResponse.json({ error: `Đã xóa kết quả nhưng chưa đặt lại số lượng giải: ${resetPrizesError.message}` }, { status: 500 });
+    return NextResponse.json({ ok: true, resetAll: true }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+  }
   const winnerId = typeof body.winnerId === "string" ? body.winnerId.trim() : "";
   if (!winnerId) return NextResponse.json({ error: "Thiếu mã kết quả trúng thưởng." }, { status: 400 });
-  const supabase = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: winner, error: findError } = await supabase.from("lwv_winners").select("id,prize_name").eq("id", winnerId).single();
   if (findError || !winner) return NextResponse.json({ error: "Không tìm thấy kết quả trúng thưởng trên Supabase." }, { status: 404 });
   const { data: prizeRows, error: prizeError } = await supabase.from("lwv_prizes").select("id,name,won").eq("name", winner.prize_name).limit(1);
