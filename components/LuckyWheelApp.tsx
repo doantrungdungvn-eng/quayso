@@ -9,7 +9,7 @@ import * as XLSX from "xlsx";
 import {
   Users, Trophy, ClipboardCheck, UserRound, Disc3, Upload, Download, QrCode,
   Search, Plus, Trash2, RotateCcw, Settings2, ShieldCheck, Sparkles, FileSpreadsheet,
-  ClipboardList, CheckCircle2, ChartNoAxesCombined, X, Copy, ExternalLink, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut
+  ClipboardList, CheckCircle2, ChartNoAxesCombined, X, Copy, ExternalLink, RefreshCw
 } from "lucide-react";
 
 type Tab = "wheel"|"register"|"customers"|"winners"|"survey"|"settings";
@@ -33,8 +33,6 @@ function safeText(v:unknown) { return String(v ?? "").trim(); }
 
 export default function LuckyWheelApp() {
   const [tab,setTab]=useState<Tab>("wheel");
-  const [wheelFullscreen,setWheelFullscreen]=useState(false);
-  const [wheelZoom,setWheelZoom]=useState(1);
   const [customers,setCustomers]=useState<Customer[]>([]);
   const [prizes,setPrizes]=useState<Prize[]>(defaultPrizes);
   const [winners,setWinners]=useState<Winner[]>([]);
@@ -307,10 +305,10 @@ export default function LuckyWheelApp() {
       {notice&&<div className={`notice ${notice.type==="success"?"success":notice.type==="error"?"error":""}`}>{notice.text}</div>}
       {!publicRegistration&&<section className="stats">{stats.map(({label,value,sub,Icon})=><div className="stat" key={label}><div className="stat-label"><Icon size={15}/>{label}</div><div className="stat-value">{value}</div><div className="stat-sub">{sub}</div></div>)}</section>}
 
-      {tab==="wheel"&&<div className={`wheel-layout ${wheelFullscreen?"wheel-fullscreen-active":""}`}>
-        <section className={`panel wheel-panel ${wheelFullscreen?"wheel-fullscreen-panel":""}`}>
-          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>LUCKY DRAW</h3><p>{eligible.length} khách hàng trong vòng quay</p></div><div className="toolbar"><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>setWheelFullscreen(v=>!v)}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
-          <div className="wheel-wrap" ref={wheelRef} style={{width:wheelFullscreen?`min(88vmin, ${620*wheelZoom}px)`:`min(100%, ${500*wheelZoom}px)`,maxWidth:"100%"}}><div className="wheel-pointer"/><div className="wheel" style={{transform:`rotate(${rotation}deg)`}}><canvas ref={canvasRef}/></div><div className="wheel-center">✦</div></div>
+      {tab==="wheel"&&<div className="wheel-layout">
+        <section className="panel wheel-panel">
+          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>LUCKY DRAW</h3><p>{eligible.length} khách hàng trong vòng quay</p></div><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button></div>
+          <div className="wheel-wrap" ref={wheelRef}><div className="wheel-pointer"/><div className="wheel" style={{transform:`rotate(${rotation}deg)`}}><canvas ref={canvasRef}/></div><div className="wheel-center">✦</div></div>
           <button className="spin-btn" onClick={spin} disabled={spinning||!eligible.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
           <div className="wheel-caption">{spinning?"Chúc bạn may mắn! Đang xác định kết quả...":"Kết quả ngẫu nhiên · Mỗi khách chỉ trúng một lần"}</div>
         </section>
