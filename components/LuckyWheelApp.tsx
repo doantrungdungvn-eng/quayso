@@ -42,7 +42,7 @@ export default function LuckyWheelApp() {
   const [spinning,setSpinning]=useState(false);
   const [rotation,setRotation]=useState(0);
   const [winnerModal,setWinnerModal]=useState<Winner|null>(null);
-  const [selectedPrize,setSelectedPrize]=useState("p1");
+  const [selectedPrize,setSelectedPrize]=useState("");
   const [eventName,setEventName]=useState("Tri Ân Khách Hàng VIP");
   const [eventDate,setEventDate]=useState("");
   const [eventTime,setEventTime]=useState("17:30");
@@ -66,6 +66,11 @@ export default function LuckyWheelApp() {
   const eligible=useMemo(()=>customers.filter(c=>c.eligible!==false && !winners.some(w=>w.customer_id===c.id)),[customers,winners]);
   const activePrizes=useMemo(()=>prizes.filter(p=>p.active && p.won<p.quantity),[prizes]);
   const currentPrize=prizes.find(p=>p.id===selectedPrize);
+  // Keep the controlled select value aligned with actual prize IDs after refresh, deletion, or edits.
+  useEffect(()=>{
+    const valid=prizes.find(p=>p.id===selectedPrize && p.active && p.won<p.quantity);
+    if(!valid){ setSelectedPrize(prizes.find(p=>p.active && p.won<p.quantity)?.id || ""); }
+  },[prizes,selectedPrize]);
   const filteredCustomers=useMemo(()=>customers.filter(c=>[c.full_name,c.phone,c.advisor_name,c.customer_code].some(x=>safeText(x).toLowerCase().includes(search.toLowerCase()))),[customers,search]);
   const filteredWinners=useMemo(()=>winners.filter(w=>[w.full_name,w.phone,w.advisor_name,w.prize_name].some(x=>safeText(x).toLowerCase().includes(search.toLowerCase()))),[winners,search]);
 
@@ -93,6 +98,7 @@ export default function LuckyWheelApp() {
     setCustomers(loadLocal("lwv_customers",sampleCustomers));
     const savedPrizes=loadLocal("lwv_prizes",defaultPrizes);
     setPrizes(savedPrizes);
+    setSelectedPrize(savedPrizes.find((p:Prize)=>p.active && p.won<p.quantity)?.id || savedPrizes[0]?.id || "");
     setPrizeEdits(Object.fromEntries(savedPrizes.map((p:Prize)=>[p.id,{name:p.name,quantity:String(p.quantity)}])));
     setWinners(loadLocal("lwv_winners",[]));
     setEventName(loadLocal("lwv_event_name","Tri Ân Khách Hàng VIP"));
@@ -158,7 +164,7 @@ export default function LuckyWheelApp() {
       const cs = (result.customers || []) as Customer[];
       const ps = (result.prizes || []) as Prize[];
       const ws = (result.winners || []) as Winner[];
-      setCustomers(cs); setPrizes(ps); setPrizeEdits(Object.fromEntries(ps.map((p:Prize)=>[p.id,{name:p.name,quantity:String(p.quantity)}]))); setWinners(ws);
+      setCustomers(cs); setPrizes(ps); setSelectedPrize(current => (ps.some((p:Prize)=>p.id===current && p.active && p.won<p.quantity) ? current : (ps.find((p:Prize)=>p.active && p.won<p.quantity)?.id || ""))); setPrizeEdits(Object.fromEntries(ps.map((p:Prize)=>[p.id,{name:p.name,quantity:String(p.quantity)}]))); setWinners(ws);
       saveLocal("lwv_customers",cs); saveLocal("lwv_prizes",ps); saveLocal("lwv_winners",ws);
       showNotice(`Đã đồng bộ dữ liệu từ Supabase: ${cs.length} khách hàng, ${ws.length} lượt trúng.`);
     } catch {
@@ -218,7 +224,14 @@ export default function LuckyWheelApp() {
     if(spinning)return;
     if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng.","error");return;}
     if(!eligible.length){showNotice("Chưa có khách hàng đủ điều kiện hoặc tất cả khách đã trúng thưởng.","error");return;}
-    if(!currentPrize||!currentPrize.active||currentPrize.won>=currentPrize.quantity){showNotice("Giải thưởng đã hết số lượng. Hãy chọn giải khác.","error");return;}
+    const prizeToSpin=prizes.find(p=>p.id===selectedPrize);
+    if(!prizeToSpin){
+      const available=prizes.find(p=>p.active && p.won<p.quantity);
+      if(available) setSelectedPrize(available.id);
+      showNotice(available?"Đã cập nhật giải đang chọn. Vui lòng bấm QUAY NGAY lần nữa.":"Không có giải thưởng đang hoạt động hoặc còn số lượng.","error");
+      return;
+    }
+    if(!prizeToSpin.active||prizeToSpin.won>=prizeToSpin.quantity){showNotice("Giải thưởng đã hết số lượng. Hãy chọn giải khác.","error");return;}
     try {
       const idx=randomIndex(eligible.length);const picked=eligible[idx];
       const arc=360/eligible.length;
@@ -231,7 +244,7 @@ export default function LuckyWheelApp() {
       setSpinning(true);setRotation(nextRotation);
       spinTimer.current=setTimeout(async()=>{
         try {
-          const prize=currentPrize;
+          const prize=prizeToSpin;
           const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
           const nextW=[win,...winners];const nextP=prizes.map(p=>p.id===prize.id?{...p,won:p.won+1}:p);
           setWinners(nextW);setPrizes(nextP);setWinnerModal(win);
