@@ -74,3 +74,9 @@ html, body {
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
+/* Wheel zoom and fullscreen controls */
+.wheel-fullscreen-active{display:block!important}
+.wheel-fullscreen-panel{position:fixed!important;inset:0!important;z-index:1000!important;width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;margin:0!important;padding:clamp(12px,2vw,28px)!important;overflow:auto!important;display:flex!important;justify-content:center!important;align-items:center!important;background:radial-gradient(circle at 50% 40%,#f7fbf9 0,#eef5f1 70%,#e8f0ec 100%)!important}
+.wheel-fullscreen-panel .wheel-wrap{flex-shrink:0;margin:clamp(8px,2vh,20px) auto!important;width:min(88vmin,620px)!important}
+.wheel-fullscreen-panel .spin-btn{flex-shrink:0}
+@media(max-width:600px){.wheel-fullscreen-panel{padding:12px!important}.wheel-fullscreen-panel .wheel-wrap{width:min(84vw,62vh,520px)!important}.wheel-fullscreen-panel .wheel{border-width:6px}.wheel-fullscreen-panel .wheel-center{width:52px;height:52px}}

@@ -9,7 +9,7 @@ import * as XLSX from "xlsx";
 import {
   Users, Trophy, ClipboardCheck, UserRound, Disc3, Upload, Download, QrCode,
   Search, Plus, Trash2, RotateCcw, Settings2, ShieldCheck, Sparkles, FileSpreadsheet,
-  ClipboardList, CheckCircle2, ChartNoAxesCombined, X, Copy, ExternalLink, RefreshCw
+  ClipboardList, CheckCircle2, ChartNoAxesCombined, X, Copy, ExternalLink, RefreshCw, Maximize2, Minimize2, ZoomIn, ZoomOut
 } from "lucide-react";
 
 type Tab = "wheel"|"register"|"customers"|"winners"|"survey"|"settings";
@@ -33,6 +33,8 @@ function safeText(v:unknown) { return String(v ?? "").trim(); }
 
 export default function LuckyWheelApp() {
   const [tab,setTab]=useState<Tab>("wheel");
+  const [wheelFullscreen,setWheelFullscreen]=useState(false);
+  const [wheelZoom,setWheelZoom]=useState(1);
   const [customers,setCustomers]=useState<Customer[]>([]);
   const [prizes,setPrizes]=useState<Prize[]>(defaultPrizes);
   const [winners,setWinners]=useState<Winner[]>([]);
@@ -42,7 +44,7 @@ export default function LuckyWheelApp() {
   const [spinning,setSpinning]=useState(false);
   const [rotation,setRotation]=useState(0);
   const [winnerModal,setWinnerModal]=useState<Winner|null>(null);
-  const [selectedPrize,setSelectedPrize]=useState("");
+  const [selectedPrize,setSelectedPrize]=useState("p1");
   const [eventName,setEventName]=useState("Tri Ân Khách Hàng VIP");
   const [eventDate,setEventDate]=useState("");
   const [eventTime,setEventTime]=useState("17:30");
@@ -66,11 +68,6 @@ export default function LuckyWheelApp() {
   const eligible=useMemo(()=>customers.filter(c=>c.eligible!==false && !winners.some(w=>w.customer_id===c.id)),[customers,winners]);
   const activePrizes=useMemo(()=>prizes.filter(p=>p.active && p.won<p.quantity),[prizes]);
   const currentPrize=prizes.find(p=>p.id===selectedPrize);
-  // Keep the controlled select value aligned with actual prize IDs after refresh, deletion, or edits.
-  useEffect(()=>{
-    const valid=prizes.find(p=>p.id===selectedPrize && p.active && p.won<p.quantity);
-    if(!valid){ setSelectedPrize(prizes.find(p=>p.active && p.won<p.quantity)?.id || ""); }
-  },[prizes,selectedPrize]);
   const filteredCustomers=useMemo(()=>customers.filter(c=>[c.full_name,c.phone,c.advisor_name,c.customer_code].some(x=>safeText(x).toLowerCase().includes(search.toLowerCase()))),[customers,search]);
   const filteredWinners=useMemo(()=>winners.filter(w=>[w.full_name,w.phone,w.advisor_name,w.prize_name].some(x=>safeText(x).toLowerCase().includes(search.toLowerCase()))),[winners,search]);
 
@@ -98,7 +95,6 @@ export default function LuckyWheelApp() {
     setCustomers(loadLocal("lwv_customers",sampleCustomers));
     const savedPrizes=loadLocal("lwv_prizes",defaultPrizes);
     setPrizes(savedPrizes);
-    setSelectedPrize(savedPrizes.find((p:Prize)=>p.active && p.won<p.quantity)?.id || savedPrizes[0]?.id || "");
     setPrizeEdits(Object.fromEntries(savedPrizes.map((p:Prize)=>[p.id,{name:p.name,quantity:String(p.quantity)}])));
     setWinners(loadLocal("lwv_winners",[]));
     setEventName(loadLocal("lwv_event_name","Tri Ân Khách Hàng VIP"));
@@ -119,8 +115,7 @@ export default function LuckyWheelApp() {
   useEffect(()=>{if(!loaded)return;saveLocal("lwv_event_name",eventName);saveLocal("lwv_event_date",eventDate);saveLocal("lwv_event_time",eventTime);},[loaded,eventName,eventDate,eventTime]);
   useEffect(()=>{
     if(!loaded || typeof window === "undefined") return;
-    const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set("page","register");
+    const url = new URL("/register", window.location.origin);
     if(eventName.trim()) url.searchParams.set("eventName",eventName.trim());
     if(eventDate) url.searchParams.set("eventDate",eventDate);
     if(eventTime) url.searchParams.set("eventTime",eventTime);
@@ -164,7 +159,7 @@ export default function LuckyWheelApp() {
       const cs = (result.customers || []) as Customer[];
       const ps = (result.prizes || []) as Prize[];
       const ws = (result.winners || []) as Winner[];
-      setCustomers(cs); setPrizes(ps); setSelectedPrize(current => (ps.some((p:Prize)=>p.id===current && p.active && p.won<p.quantity) ? current : (ps.find((p:Prize)=>p.active && p.won<p.quantity)?.id || ""))); setPrizeEdits(Object.fromEntries(ps.map((p:Prize)=>[p.id,{name:p.name,quantity:String(p.quantity)}]))); setWinners(ws);
+      setCustomers(cs); setPrizes(ps); setPrizeEdits(Object.fromEntries(ps.map((p:Prize)=>[p.id,{name:p.name,quantity:String(p.quantity)}]))); setWinners(ws);
       saveLocal("lwv_customers",cs); saveLocal("lwv_prizes",ps); saveLocal("lwv_winners",ws);
       showNotice(`Đã đồng bộ dữ liệu từ Supabase: ${cs.length} khách hàng, ${ws.length} lượt trúng.`);
     } catch {
@@ -224,14 +219,7 @@ export default function LuckyWheelApp() {
     if(spinning)return;
     if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng.","error");return;}
     if(!eligible.length){showNotice("Chưa có khách hàng đủ điều kiện hoặc tất cả khách đã trúng thưởng.","error");return;}
-    const prizeToSpin=prizes.find(p=>p.id===selectedPrize);
-    if(!prizeToSpin){
-      const available=prizes.find(p=>p.active && p.won<p.quantity);
-      if(available) setSelectedPrize(available.id);
-      showNotice(available?"Đã cập nhật giải đang chọn. Vui lòng bấm QUAY NGAY lần nữa.":"Không có giải thưởng đang hoạt động hoặc còn số lượng.","error");
-      return;
-    }
-    if(!prizeToSpin.active||prizeToSpin.won>=prizeToSpin.quantity){showNotice("Giải thưởng đã hết số lượng. Hãy chọn giải khác.","error");return;}
+    if(!currentPrize||!currentPrize.active||currentPrize.won>=currentPrize.quantity){showNotice("Giải thưởng đã hết số lượng. Hãy chọn giải khác.","error");return;}
     try {
       const idx=randomIndex(eligible.length);const picked=eligible[idx];
       const arc=360/eligible.length;
@@ -244,7 +232,7 @@ export default function LuckyWheelApp() {
       setSpinning(true);setRotation(nextRotation);
       spinTimer.current=setTimeout(async()=>{
         try {
-          const prize=prizeToSpin;
+          const prize=currentPrize;
           const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
           const nextW=[win,...winners];const nextP=prizes.map(p=>p.id===prize.id?{...p,won:p.won+1}:p);
           setWinners(nextW);setPrizes(nextP);setWinnerModal(win);
@@ -319,10 +307,10 @@ export default function LuckyWheelApp() {
       {notice&&<div className={`notice ${notice.type==="success"?"success":notice.type==="error"?"error":""}`}>{notice.text}</div>}
       {!publicRegistration&&<section className="stats">{stats.map(({label,value,sub,Icon})=><div className="stat" key={label}><div className="stat-label"><Icon size={15}/>{label}</div><div className="stat-value">{value}</div><div className="stat-sub">{sub}</div></div>)}</section>}
 
-      {tab==="wheel"&&<div className="wheel-layout">
-        <section className="panel wheel-panel">
-          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>LUCKY DRAW</h3><p>{eligible.length} khách hàng trong vòng quay</p></div><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button></div>
-          <div className="wheel-wrap" ref={wheelRef}><div className="wheel-pointer"/><div className="wheel" style={{transform:`rotate(${rotation}deg)`}}><canvas ref={canvasRef}/></div><div className="wheel-center">✦</div></div>
+      {tab==="wheel"&&<div className={`wheel-layout ${wheelFullscreen?"wheel-fullscreen-active":""}`}>
+        <section className={`panel wheel-panel ${wheelFullscreen?"wheel-fullscreen-panel":""}`}>
+          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>LUCKY DRAW</h3><p>{eligible.length} khách hàng trong vòng quay</p></div><div className="toolbar"><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>setWheelFullscreen(v=>!v)}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
+          <div className="wheel-wrap" ref={wheelRef} style={{width:wheelFullscreen?`min(88vmin, ${620*wheelZoom}px)`:`min(100%, ${500*wheelZoom}px)`,maxWidth:"100%"}}><div className="wheel-pointer"/><div className="wheel" style={{transform:`rotate(${rotation}deg)`}}><canvas ref={canvasRef}/></div><div className="wheel-center">✦</div></div>
           <button className="spin-btn" onClick={spin} disabled={spinning||!eligible.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
           <div className="wheel-caption">{spinning?"Chúc bạn may mắn! Đang xác định kết quả...":"Kết quả ngẫu nhiên · Mỗi khách chỉ trúng một lần"}</div>
         </section>
