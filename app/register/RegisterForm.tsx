@@ -16,6 +16,7 @@ export default function RegisterPage() {
   const agencyOptions = (params.get("agencies") || "").split("|").map(v => v.trim()).filter(Boolean);
   const [form, setForm] = useState<Fields>(initial);
   const [busy, setBusy] = useState(false);
+  const [completed, setCompleted] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const update = (key: keyof Fields, value: string | boolean) => setForm(old => ({ ...old, [key]: value }));
 
@@ -38,11 +39,29 @@ export default function RegisterPage() {
     } finally { setBusy(false); }
   }
 
+  if (completed) return <main className="app-shell" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <section className="panel" style={{ width: "min(100%, 640px)", textAlign: "center", padding: "clamp(28px, 6vw, 56px)" }}>
+      <div style={{ width: 76, height: 76, borderRadius: "50%", margin: "0 auto 20px", display: "grid", placeItems: "center", background: "#e5f7ed", color: "#087653", fontSize: 42, fontWeight: 900 }}>✓</div>
+      <h2 style={{ fontSize: "clamp(25px, 5vw, 38px)", margin: "0 0 14px", color: "#123d31" }}>Đăng ký hoàn tất!</h2>
+      <p style={{ fontSize: 18, lineHeight: 1.6, color: "#5d7069", margin: "0 0 24px" }}>Cảm ơn anh/chị đã đăng ký tham gia sự kiện. Anh/chị có thể đóng trang này.</p>
+      <button type="button" className="btn btn-primary" onClick={() => { setCompleted(false); setMessage(null); }} style={{ padding: "14px 24px" }}>Quay lại trang đăng ký</button>
+    </section>
+  </main>;
+
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><div className="brand-mark">✦</div><div><h1>VÒNG QUAY MAY MẮN</h1><p>Đăng ký tham gia sự kiện</p></div></div></header>
     <div className="hero"><div><div className="eyebrow">Customer appreciation event</div><h2>Đăng ký tham gia</h2><p>Vui lòng điền thông tin và hoàn thành khảo sát.</p></div></div>
     <div className="notice success" style={{ marginBottom: 16 }}><b>{eventName}</b>{eventDate && <> · Ngày {new Date(`${eventDate}T00:00:00`).toLocaleDateString("vi-VN")}</>}{eventTime && <> · {eventTime}</>}</div>
-    {message && <div className={`notice ${message.error ? "error" : "success"}`} style={{ marginBottom: 16 }} role="status">{message.text}</div>}
+    {message && message.error && <div className="notice error" style={{ marginBottom: 16 }} role="alert">{message.text}</div>}
+    {message && !message.error && <div role="dialog" aria-modal="true" aria-labelledby="registration-success-title" style={{ position: "fixed", inset: 0, zIndex: 9999, display: "grid", placeItems: "center", padding: 20, background: "rgba(8, 24, 20, .68)" }}>
+      <section style={{ width: "min(100%, 560px)", background: "#fff", borderRadius: 24, padding: "clamp(28px, 5vw, 44px)", textAlign: "center", boxShadow: "0 24px 90px rgba(0,0,0,.28)", border: "1px solid #d7eee2", animation: "successPop .25s ease-out" }}>
+        <div style={{ width: 82, height: 82, borderRadius: "50%", margin: "0 auto 20px", display: "grid", placeItems: "center", background: "#e5f7ed", color: "#087653", fontSize: 48, fontWeight: 900 }}>✓</div>
+        <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: ".12em", color: "#0b8060", marginBottom: 10 }}>ĐĂNG KÝ THÀNH CÔNG</div>
+        <h2 id="registration-success-title" style={{ fontSize: "clamp(25px, 5vw, 36px)", lineHeight: 1.2, margin: "0 0 14px", color: "#123d31" }}>Đăng ký hoàn tất!</h2>
+        <p style={{ fontSize: 17, lineHeight: 1.6, color: "#5d7069", margin: "0 0 28px" }}>Thông tin của anh/chị đã được lưu thành công. Cảm ơn anh/chị đã tham gia sự kiện.</p>
+        <button type="button" onClick={() => { setMessage(null); setCompleted(true); }} style={{ width: "100%", border: 0, borderRadius: 12, padding: "16px 20px", background: "#087653", color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer" }}>Xác nhận hoàn tất &amp; thoát</button>
+      </section>
+    </div>}
     <section className="panel"><div className="panel-head"><div><h3><QrCode size={17} style={{ display: "inline", verticalAlign: "-3px", marginRight: 7 }} />Thông tin khách hàng</h3><p>Thông tin có dấu * là bắt buộc.</p></div></div>
       <form onSubmit={submit} className="field-grid">
         <div className="field full"><label>Họ và tên *</label><input value={form.full_name} onChange={e => update("full_name", e.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" required /></div>

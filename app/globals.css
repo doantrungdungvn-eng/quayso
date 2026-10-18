@@ -109,3 +109,5 @@ html, body {
 .qr-fullscreen-code{background:white;border:1px solid #dbe7e0;border-radius:22px;padding:clamp(10px,1.6vw,24px);box-shadow:0 12px 45px #174c3915;line-height:0}.qr-fullscreen-code svg{display:block;width:min(62vmin,62vh,640px);height:auto;max-width:100%}
 .qr-fullscreen-content h2{font-size:clamp(20px,3vw,42px);font-weight:900;letter-spacing:.025em;margin:0}.qr-fullscreen-content p{font-size:clamp(13px,1.6vw,21px);color:#557268;margin:0;max-width:850px;line-height:1.5}.qr-fullscreen-url{width:100%;text-align:center;font-size:clamp(9px,1vw,14px);color:#658075;overflow-wrap:anywhere}
 @media(max-width:600px){.qr-fullscreen-overlay{padding:12px}.qr-fullscreen-top{align-items:flex-start}.qr-fullscreen-close{padding:9px 10px;font-size:12px}.qr-fullscreen-close span{display:none}.qr-fullscreen-code svg{width:min(78vw,55vh,480px)}.qr-fullscreen-content h2{font-size:clamp(18px,5vw,28px)}}
+
+@keyframes successPop{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
