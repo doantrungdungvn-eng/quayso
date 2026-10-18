@@ -36,3 +36,20 @@ export async function POST(request: Request) {
   if (updateError || !updatedPrize) return NextResponse.json({ error: "Đã ghi người trúng nhưng chưa cập nhật được số lượng giải. Vui lòng kiểm tra Supabase trước lượt quay tiếp theo." }, { status: 500 });
   return NextResponse.json({ ok: true, winner: winnerRow, prize: updatedPrize }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }
+
+export async function DELETE(request: Request) {
+  const expectedPin = process.env.ADMIN_PIN;
+  const suppliedPin = request.headers.get("x-admin-pin");
+  if (!expectedPin || !suppliedPin || suppliedPin !== expectedPin) {
+    return NextResponse.json({ error: "Không được phép đặt lại kết quả. Hãy kiểm tra PIN quản trị trên Vercel." }, { status: 401 });
+  }
+  const customerId = new URL(request.url).searchParams.get("customerId")?.trim();
+  if (!customerId) return NextResponse.json({ error: "Thiếu mã khách hàng cần đặt lại." }, { status: 400 });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return NextResponse.json({ error: "Máy chủ chưa cấu hình Supabase service key." }, { status: 503 });
+  const supabase = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { error } = await supabase.from("lwv_winners").delete().eq("customer_id", customerId);
+  if (error) return NextResponse.json({ error: `Không thể xóa kết quả trúng thưởng: ${error.message}` }, { status: 500 });
+  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+}

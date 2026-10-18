@@ -111,3 +111,5 @@ html, body {
 @media(max-width:600px){.qr-fullscreen-overlay{padding:12px}.qr-fullscreen-top{align-items:flex-start}.qr-fullscreen-close{padding:9px 10px;font-size:12px}.qr-fullscreen-close span{display:none}.qr-fullscreen-code svg{width:min(78vw,55vh,480px)}.qr-fullscreen-content h2{font-size:clamp(18px,5vw,28px)}}
 
 @keyframes successPop{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+.customer-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:8px 0}.customer-detail-grid>div{display:flex;flex-direction:column;gap:4px;min-width:0}.customer-detail-grid b{overflow-wrap:anywhere;font-weight:650;color:#173d59}@media(max-width:560px){.customer-detail-grid{grid-template-columns:1fr}}
