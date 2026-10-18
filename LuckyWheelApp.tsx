@@ -246,10 +246,13 @@ export default function LuckyWheelApp() {
       if (ctx.state !== "running") await ctx.resume();
       const oscillator = ctx.createOscillator();
       const gain = ctx.createGain();
-      oscillator.frequency.value = 660;
-      gain.gain.value = 0.0001;
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.075, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
       oscillator.connect(gain); gain.connect(ctx.destination);
-      oscillator.start(); oscillator.stop(ctx.currentTime + 0.025);
+      oscillator.start(ctx.currentTime); oscillator.stop(ctx.currentTime + 0.24);
       return ctx.state === "running";
     } catch {
       showNotice("Chưa bật được âm thanh. Hãy bấm nút Âm thanh bật một lần nữa.", "error");
@@ -304,6 +307,12 @@ export default function LuckyWheelApp() {
     if(spinning)return;
     if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng. Hãy thoát toàn màn hình để đăng nhập nếu cần.","error");return;}
     if(!wheelEligible.length){showNotice("Sự kiện đang chọn chưa có khách hàng đủ điều kiện hoặc tất cả khách đã trúng thưởng.","error");return;}
+    // Unlock/resume Web Audio directly from the user's click before starting timers.
+    // Browsers may block audio contexts that are first created inside a delayed callback.
+    if (soundEnabled) {
+      const audioReady = await unlockAudio();
+      if (!audioReady) showNotice("Chưa kích hoạt được âm thanh. Hãy kiểm tra âm lượng trình duyệt rồi bấm nút Âm thanh để thử lại.", "error");
+    }
     // In fullscreen, the prize selector is hidden. If the saved selection is stale
     // (for example after deleting/editing prizes), automatically use the first available prize.
     const prizeToSpin = currentPrize && currentPrize.active && currentPrize.won < currentPrize.quantity
