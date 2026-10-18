@@ -272,14 +272,21 @@ export default function LuckyWheelApp() {
   function startSpinSound() {
     if(!soundEnabled) return;
     const ctx=getAudioContext();
-    if (ctx && ctx.state === "suspended") void ctx.resume();
+    if(!ctx) return;
     soundStep.current=0;
     if(soundTimer.current) clearInterval(soundTimer.current);
-    soundTimer.current=setInterval(()=>{
-      const step=soundStep.current++;
-      const freq=step%4===0?660:step%2===0?520:440;
-      playTone(freq,0.075,"square",0.018);
-    },180);
+    // Resume first, then start the tick loop. If a browser suspends Web Audio,
+    // the previous implementation started the interval too early and stayed silent.
+    const begin = () => {
+      if(!soundEnabled || !audioContextRef.current) return;
+      soundTimer.current=setInterval(()=>{
+        const step=soundStep.current++;
+        const freq=step%4===0?660:step%2===0?520:440;
+        playTone(freq,0.09,"square",0.035);
+      },180);
+    };
+    if(ctx.state === "running") begin();
+    else void ctx.resume().then(()=>{ if(ctx.state === "running") begin(); }).catch(err=>console.warn("Audio resume failed",err));
   }
   function stopSpinSound() {
     if(soundTimer.current) clearInterval(soundTimer.current);
@@ -310,8 +317,11 @@ export default function LuckyWheelApp() {
     // Unlock/resume Web Audio directly from the user's click before starting timers.
     // Browsers may block audio contexts that are first created inside a delayed callback.
     if (soundEnabled) {
-      const audioReady = await unlockAudio();
-      if (!audioReady) showNotice("Chưa kích hoạt được âm thanh. Hãy kiểm tra âm lượng trình duyệt rồi bấm nút Âm thanh để thử lại.", "error");
+      // Call resume synchronously from the click gesture so Chrome/Cốc Cốc allows audio.
+      // Do not block the wheel animation on audio initialization.
+      void unlockAudio().then(audioReady=>{
+        if(!audioReady) showNotice("Chưa kích hoạt được âm thanh. Hãy bấm nút Âm thanh bật để thử tiếng.","error");
+      });
     }
     // In fullscreen, the prize selector is hidden. If the saved selection is stale
     // (for example after deleting/editing prizes), automatically use the first available prize.
@@ -336,12 +346,18 @@ export default function LuckyWheelApp() {
           const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
           // Persist the result server-side so Supabase RLS cannot silently block browser writes.
           if(supabaseConfigured){
-            const response=await fetch("/api/admin/winners",{
-              method:"POST",
-              headers:{"Content-Type":"application/json","x-admin-pin":adminPin},
-              body:JSON.stringify({winner:win,prizeId:prize.id}),
-              cache:"no-store"
-            });
+            const controller = new AbortController();
+            const requestTimeout = setTimeout(()=>controller.abort(),10000);
+            let response: Response;
+            try {
+              response=await fetch("/api/admin/winners",{
+                method:"POST",
+                headers:{"Content-Type":"application/json","x-admin-pin":adminPin},
+                body:JSON.stringify({winner:win,prizeId:prize.id}),
+                cache:"no-store",
+                signal:controller.signal
+              });
+            } finally { clearTimeout(requestTimeout); }
             const result=await response.json().catch(()=>({}));
             if(!response.ok) throw new Error(result.error||"Không lưu được kết quả trúng thưởng lên Supabase.");
           }
