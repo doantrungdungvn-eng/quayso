@@ -233,13 +233,32 @@ export default function LuckyWheelApp() {
     if (typeof window === "undefined") return null;
     const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return null;
-    if (!audioContextRef.current) audioContextRef.current = new AudioContextClass();
-    if (audioContextRef.current.state === "suspended") void audioContextRef.current.resume();
+    if (!audioContextRef.current || audioContextRef.current.state === "closed") audioContextRef.current = new AudioContextClass();
     return audioContextRef.current;
+  }
+  async function unlockAudio() {
+    const ctx = getAudioContext();
+    if (!ctx) {
+      showNotice("Trình duyệt này không hỗ trợ âm thanh. Vui lòng dùng Chrome hoặc Edge mới nhất.", "error");
+      return false;
+    }
+    try {
+      if (ctx.state !== "running") await ctx.resume();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.frequency.value = 660;
+      gain.gain.value = 0.0001;
+      oscillator.connect(gain); gain.connect(ctx.destination);
+      oscillator.start(); oscillator.stop(ctx.currentTime + 0.025);
+      return ctx.state === "running";
+    } catch {
+      showNotice("Chưa bật được âm thanh. Hãy bấm nút Âm thanh bật một lần nữa.", "error");
+      return false;
+    }
   }
   function playTone(frequency:number, duration:number, type:OscillatorType="sine", volume=0.045, delay=0) {
     if (!soundEnabled) return;
-    const ctx=getAudioContext(); if(!ctx) return;
+    const ctx=getAudioContext(); if(!ctx || ctx.state !== "running") return;
     const start=ctx.currentTime+delay;
     const oscillator=ctx.createOscillator(); const gain=ctx.createGain();
     oscillator.type=type; oscillator.frequency.setValueAtTime(frequency,start);
@@ -249,7 +268,9 @@ export default function LuckyWheelApp() {
   }
   function startSpinSound() {
     if(!soundEnabled) return;
-    getAudioContext(); soundStep.current=0;
+    const ctx=getAudioContext();
+    if (ctx && ctx.state === "suspended") void ctx.resume();
+    soundStep.current=0;
     if(soundTimer.current) clearInterval(soundTimer.current);
     soundTimer.current=setInterval(()=>{
       const step=soundStep.current++;
@@ -406,7 +427,7 @@ export default function LuckyWheelApp() {
 
       {tab==="wheel"&&<div className={`wheel-layout ${wheelFullscreen?"wheel-fullscreen-active":""}`}>
         <section className={`panel wheel-panel ${wheelFullscreen?"wheel-fullscreen-panel":""}`}>
-          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>VÒNG QUAY MAY MẮN</h3><p>{wheelEligible.length} khách hàng đủ điều kiện · {selectedWheelEvent}</p></div><div className="toolbar"><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button><div className="field" style={{minWidth:260,margin:0}}><label>Chọn sự kiện để quay</label><select value={wheelEventFilter==="current"?currentEventKey:wheelEventFilter} onChange={e=>setWheelEventFilter(e.target.value)}>{wheelEventOptions.map(ev=><option key={ev} value={ev}>{ev} · {customers.filter(c=>eventKey(c)===ev&&c.eligible!==false&&!winners.some(w=>w.customer_id===c.id)).length} khách đủ điều kiện</option>)}</select></div><button className="secondary-btn" onClick={()=>setSoundEnabled(v=>{if(v){stopSpinSound();}else{playTone(660,0.12,"sine",0.04);}return !v;})} title="Bật hoặc tắt âm thanh">{soundEnabled?"🔊 Âm thanh bật":"🔇 Âm thanh tắt"}</button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>setWheelFullscreen(v=>!v)}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
+          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>VÒNG QUAY MAY MẮN</h3><p>{wheelEligible.length} khách hàng đủ điều kiện · {selectedWheelEvent}</p></div><div className="toolbar"><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button><div className="field" style={{minWidth:260,margin:0}}><label>Chọn sự kiện để quay</label><select value={wheelEventFilter==="current"?currentEventKey:wheelEventFilter} onChange={e=>setWheelEventFilter(e.target.value)}>{wheelEventOptions.map(ev=><option key={ev} value={ev}>{ev} · {customers.filter(c=>eventKey(c)===ev&&c.eligible!==false&&!winners.some(w=>w.customer_id===c.id)).length} khách đủ điều kiện</option>)}</select></div><button className="secondary-btn" onClick={async()=>{if(soundEnabled){stopSpinSound();setSoundEnabled(false);showNotice("Đã tắt âm thanh vòng quay.");}else{setSoundEnabled(true);const ok=await unlockAudio();if(ok){playTone(660,0.16,"sine",0.055);showNotice("Đã bật âm thanh. Hãy thử quay số.");}}}} title="Bật hoặc tắt âm thanh">{soundEnabled?"🔊 Âm thanh bật":"🔇 Âm thanh tắt"}</button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>setWheelFullscreen(v=>!v)}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
           <div className="wheel-wrap" ref={wheelRef} style={{width:wheelFullscreen?`min(88vmin, ${620*wheelZoom}px)`:`min(100%, ${500*wheelZoom}px)`,maxWidth:"100%"}}><div className="wheel-pointer"/><div className="wheel" style={{transform:`rotate(${rotation}deg)`}}><canvas ref={canvasRef}/></div><div className="wheel-center">✦</div></div>
           <button className="spin-btn" onClick={spin} disabled={spinning||!wheelEligible.length||!activePrizes.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
           <div className="wheel-caption">{spinning?"Chúc bạn may mắn! Đang xác định kết quả...":"Kết quả ngẫu nhiên · Mỗi khách chỉ trúng một lần"}</div>
