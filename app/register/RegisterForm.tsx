@@ -14,8 +14,6 @@ export default function RegisterPage() {
   const eventTime = params.get("eventTime") || "";
   const advisorOptions = (params.get("advisors") || "").split("|").map(v => v.trim()).filter(Boolean);
   const agencyOptions = (params.get("agencies") || "").split("|").map(v => v.trim()).filter(Boolean);
-  const advisorOptions = (params.get("advisors") || "").split("|").map(v => v.trim()).filter(Boolean);
-  const agencyOptions = (params.get("agencies") || "").split("|").map(v => v.trim()).filter(Boolean);
   const [form, setForm] = useState<Fields>(initial);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
