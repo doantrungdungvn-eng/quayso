@@ -26,6 +26,8 @@ create table if not exists public.lwv_customers (
 );
 create unique index if not exists lwv_customers_phone_normalized_idx
   on public.lwv_customers (regexp_replace(phone, '\\s', '', 'g'));
+create unique index if not exists lwv_customers_customer_code_idx
+  on public.lwv_customers (customer_code) where customer_code is not null;
 
 create table if not exists public.lwv_prizes (
   id text primary key,

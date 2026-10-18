@@ -21,15 +21,26 @@ export async function POST(request: Request) {
 
   const supabase = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const normalizedPhone = phone.replace(/\s/g, "");
-  const { data: existing, error: lookupError } = await supabase.from("lwv_customers").select("id,phone");
+  const { data: existing, error: lookupError } = await supabase.from("lwv_customers").select("id,phone,created_at");
   if (lookupError) return NextResponse.json({ error: "Không kiểm tra được dữ liệu khách hàng. Kiểm tra bảng lwv_customers." }, { status: 500 });
   if ((existing || []).some((row: {phone:string}) => String(row.phone || "").replace(/\s/g, "") === normalizedPhone)) {
     return NextResponse.json({ error: "Số điện thoại này đã đăng ký. Vui lòng liên hệ ban tổ chức nếu cần cập nhật." }, { status: 409 });
   }
 
+  // Mã khách hàng: DDMMSS, dùng ngày đăng ký theo giờ Việt Nam và số thứ tự trong ngày.
+  // Ví dụ đăng ký ngày 18/10: 181001, 181002, 181003...
+  const now = new Date();
+  const vietnamDate = new Date(now.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const dayMonth = vietnamDate.slice(8, 10) + vietnamDate.slice(5, 7);
+  const todayCount = (existing || []).filter((item: { created_at?: string | null }) => {
+    if (!item.created_at) return false;
+    return new Date(new Date(item.created_at).getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10) === vietnamDate;
+  }).length;
+  const customerCode = `${dayMonth}${String(todayCount + 1).padStart(2, "0")}`;
+
   const row = {
     id: String(body.id || crypto.randomUUID()), full_name, phone,
-    customer_code: null,
+    customer_code: customerCode,
     advisor_name: String(body.advisor_name || "").trim() || null,
     agency: String(body.agency || "").trim() || null,
     survey_rating: Number(body.survey_rating || 5),
@@ -46,5 +57,5 @@ export async function POST(request: Request) {
     if (error.code === "23505") return NextResponse.json({ error: "Số điện thoại này đã đăng ký." }, { status: 409 });
     return NextResponse.json({ error: "Không lưu được đăng ký vào Supabase. Kiểm tra cấu trúc bảng." }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, message: "Đăng ký thành công." }, { status: 201 });
+  return NextResponse.json({ ok: true, message: "Đăng ký thành công.", customer_code: customerCode }, { status: 201 });
 }
