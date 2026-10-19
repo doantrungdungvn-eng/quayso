@@ -1,25 +1,10 @@
-"use client";
-import { FormEvent, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { CheckCircle2, UserRound } from "lucide-react";
+import { Suspense } from "react";
+import AdvisorSurveyClient from "./AdvisorSurveyClient";
+
 export default function AdvisorSurveyPage() {
-  const searchParams = useSearchParams();
-  const campaignId = searchParams.get("campaign") || "";
-  const [campaignName, setCampaignName] = useState("Đang kiểm tra đợt khảo sát…");
-  const [campaignError, setCampaignError] = useState("");
-  useEffect(() => {
-    if (!campaignId) { setCampaignError("Link khảo sát thiếu mã đợt. Vui lòng quét QR do ban tổ chức cung cấp."); return; }
-    let alive = true;
-    fetch(`/api/advisor-survey?campaign=${encodeURIComponent(campaignId)}`, { cache: "no-store" })
-      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "Không xác định được đợt khảo sát."); return d; })
-      .then(d => { if (alive) setCampaignName(d.campaign.name); })
-      .catch(e => { if (alive) setCampaignError(e instanceof Error ? e.message : "Không tải được đợt khảo sát."); });
-    return () => { alive = false; };
-  }, [campaignId]);
-  const [form,setForm]=useState({full_name:"",phone:"",agency:"",commitment:"",revenue:"",recruit:"0",notes:"",consent:false});
-  const [busy,setBusy]=useState(false); const [message,setMessage]=useState(""); const [error,setError]=useState(false); const [done,setDone]=useState(false);
-  const update=(key:string,value:string|boolean)=>setForm(old=>({...old,[key]:value}));
-  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setMessage("");setError(false);try{const r=await fetch("/api/advisor-survey",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,campaign_id:campaignId})});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||"Không gửi được khảo sát.");setDone(true);}catch(err){setError(true);setMessage(err instanceof Error?err.message:"Có lỗi xảy ra.");}finally{setBusy(false);}}
-  if(done)return <main className="app-shell" style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:24}}><section className="panel" style={{width:"min(100%,620px)",textAlign:"center",padding:40}}><div style={{fontSize:48,color:"#087653"}}>✓</div><h2>Đã ghi nhận cam kết!</h2><p>Cảm ơn anh/chị. Thông tin khảo sát đã được gửi thành công.</p><button className="primary-btn" onClick={()=>{setDone(false);setForm({full_name:"",phone:"",agency:"",commitment:"",revenue:"",recruit:"0",notes:"",consent:false});}}>Gửi khảo sát khác</button></section></main>;
-  return <main className="app-shell"><header className="topbar"><div className="brand"><div className="brand-mark">✦</div><div><h1>KHẢO SÁT TƯ VẤN VIÊN</h1><p>{campaignName}</p></div></div></header><div className="hero"><div><div className="eyebrow">ADVISOR BUSINESS COMMITMENT</div><h2>{campaignName}</h2><p>Vui lòng điền thông tin và mục tiêu dự kiến cho đúng đợt khảo sát.</p></div></div>{campaignError&&<div className="notice error">{campaignError}</div>}{message&&<div className={`notice ${error?"error":"success"}`}>{message}</div>}<section className="panel"><div className="panel-head"><div><h3><UserRound size={17} style={{display:"inline",marginRight:7}}/>Thông tin tư vấn viên</h3><p>Các mục có dấu * là bắt buộc.</p></div></div><form className="field-grid" onSubmit={submit}><div className="field full"><label>Họ và tên TVV *</label><input required value={form.full_name} onChange={e=>update("full_name",e.target.value)} placeholder="Họ tên tư vấn viên"/></div><div className="field"><label>Số điện thoại *</label><input required type="tel" value={form.phone} onChange={e=>update("phone",e.target.value)} placeholder="09xxxxxxxx"/></div><div className="field"><label>Đơn vị / Nhóm *</label><input required value={form.agency} onChange={e=>update("agency",e.target.value)} placeholder="Tên GA / nhóm kinh doanh"/></div><div className="field full"><label>Cam kết kinh doanh trong tháng *</label><textarea required value={form.commitment} onChange={e=>update("commitment",e.target.value)} placeholder="Ví dụ: duy trì hoạt động, số hồ sơ, số khách hàng gặp..." rows={3}/></div><div className="field"><label>Doanh thu mục tiêu (triệu đồng) *</label><input required type="number" min="0" step="0.1" value={form.revenue} onChange={e=>update("revenue",e.target.value)} placeholder="Ví dụ: 50"/></div><div className="field"><label>Số TVV dự kiến tuyển dụng trong tháng *</label><input required type="number" min="0" step="1" value={form.recruit} onChange={e=>update("recruit",e.target.value)}/></div><div className="field full"><label>Ghi chú (không bắt buộc)</label><textarea value={form.notes} onChange={e=>update("notes",e.target.value)} placeholder="Kế hoạch hỗ trợ hoặc ghi chú thêm" rows={2}/></div><div className="field full"><label className="checkbox-row"><input type="checkbox" checked={form.consent} onChange={e=>update("consent",e.target.checked)} required/><span>Tôi xác nhận thông tin và cam kết trên là chính xác, đồng ý để ban quản lý sử dụng cho mục đích tổng hợp kế hoạch kinh doanh và quay thưởng nội bộ.</span></label></div><div className="field full"><button className="primary-btn full-btn" type="submit" disabled={busy||!!campaignError}>{busy?"Đang gửi…":<><CheckCircle2 size={16}/> Gửi cam kết</>}</button></div></form></section><footer className="footer">Thông tin dùng cho mục đích quản lý nội bộ và xét thưởng theo thể lệ chương trình.</footer></main>;
+  return (
+    <Suspense fallback={<main className="app-shell" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>Đang tải khảo sát...</main>}>
+      <AdvisorSurveyClient />
+    </Suspense>
+  );
 }
