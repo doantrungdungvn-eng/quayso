@@ -98,3 +98,10 @@ Sau đó đẩy mã nguồn lên GitHub và chờ Vercel deploy thành công. C�
 - Có trường ngày hẹn tư vấn chi tiết / kiểm tra hợp đồng.
 - Trong Cài đặt, nhập danh sách TVV và Đơn vị/Nhóm, mỗi mục một dòng, rồi lưu. QR/link tạo sau khi lưu sẽ mang theo các lựa chọn này để điện thoại khách hàng hiển thị dropdown.
 - Nếu bảng `lwv_customers` đã tồn tại trên Supabase, chạy migration một lần: `alter table public.lwv_customers add column if not exists appointment_date date;`
+
+## Khảo sát và vòng quay tư vấn viên
+- Link QR khảo sát riêng: `/advisor-survey`.
+- Biểu mẫu ghi nhận họ tên, điện thoại, đơn vị/nhóm, cam kết kinh doanh, doanh thu mục tiêu tháng, số TVV dự kiến tuyển dụng và ghi chú.
+- Các bản ghi được đánh dấu nội bộ bằng `event_name = __TVV_SURVEY__` trong `lwv_customers` để dùng lại cơ chế đồng bộ hiện có; giao diện khách hàng và vòng quay khách hàng lọc các bản ghi này ra.
+- Trong tab **Tư vấn viên**, quét QR hoặc sao chép link, xem danh sách, xuất Excel và chọn **Mở vòng quay TVV**. Trên tab Vòng quay có nút chuyển giữa quay khách hàng và quay TVV.
+- Cần cấu hình `NEXT_PUBLIC_SUPABASE_URL` và `SUPABASE_SERVICE_ROLE_KEY` trên Vercel để biểu mẫu TVV được lưu tập trung. Không đưa service key vào mã phía trình duyệt.
