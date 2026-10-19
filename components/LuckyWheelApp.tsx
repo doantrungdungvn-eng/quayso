@@ -371,27 +371,41 @@ export default function LuckyWheelApp() {
         try {
           const prize=prizeToSpin;
           const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:advisorMode?"Quà tư vấn viên":(prize?.name||""),customer_code:picked.customer_code||"",won_at:now()};
-          // Persist the result server-side so Supabase RLS cannot silently block browser writes.
-          if(supabaseConfigured){
-            const controller = new AbortController();
-            const requestTimeout = setTimeout(()=>controller.abort(),10000);
-            let response: Response;
-            try {
-              response=await fetch("/api/admin/winners",{
-                method:"POST",
-                headers:{"Content-Type":"application/json","x-admin-pin":adminPin},
-                body:JSON.stringify({winner:win,prizeId:prize?.id,advisorMode}),
-                cache:"no-store",
-                signal:controller.signal
-              });
-            } finally { clearTimeout(requestTimeout); }
-            const result=await response.json().catch(()=>({}));
-            if(!response.ok) throw new Error(result.error||"Không lưu được kết quả trúng thưởng lên Supabase.");
-          }
-          const nextW=[win,...winners];const nextP=advisorMode?prizes:prizes.map(p=>p.id===prize?.id?{...p,won:p.won+1}:p);
-          setWinners(nextW);setPrizes(nextP);setWinnerModal(win);playWinSound();
-          saveLocal("lwv_winners",nextW);saveLocal("lwv_prizes",nextP);
+          // Show and save the result locally immediately, so a temporary Supabase/API
+          // failure cannot suppress the winner popup or erase the result on this device.
+          const nextW=[win,...winners];
+          const nextP=advisorMode?prizes:prizes.map(p=>p.id===prize?.id?{...p,won:p.won+1}:p);
+          setWinners(nextW);
+          setPrizes(nextP);
+          setWinnerModal(win);
+          saveLocal("lwv_winners",nextW);
+          saveLocal("lwv_prizes",nextP);
+          playWinSound();
           confetti({particleCount:160,spread:90,origin:{y:.6},colors:["#d9a441","#ffffff","#0b694e","#d95d39"]});
+
+          // Sync to the shared database after the result is already visible locally.
+          // A server error should show a warning, not cancel the popup or local winner record.
+          if(supabaseConfigured){
+            try {
+              const controller = new AbortController();
+              const requestTimeout = setTimeout(()=>controller.abort(),10000);
+              let response: Response;
+              try {
+                response=await fetch("/api/admin/winners",{
+                  method:"POST",
+                  headers:{"Content-Type":"application/json","x-admin-pin":adminPin},
+                  body:JSON.stringify({winner:win,prizeId:prize?.id,advisorMode}),
+                  cache:"no-store",
+                  signal:controller.signal
+                });
+              } finally { clearTimeout(requestTimeout); }
+              const result=await response.json().catch(()=>({}));
+              if(!response.ok) throw new Error(result.error||"Không lưu được kết quả lên Supabase.");
+            } catch(syncError) {
+              console.error("Winner was saved locally but Supabase sync failed",syncError);
+              showNotice("Đã ghi nhận người trúng và hiển thị popup trên thiết bị này, nhưng chưa đồng bộ được Supabase. Kiểm tra ADMIN_PIN/API rồi đồng bộ lại.","error");
+            }
+          }
         } catch(err) {
           console.error("Spin result failed",err);
           showNotice("Vòng quay đã chạy nhưng không lưu được kết quả. Hãy kiểm tra kết nối và thử lại.","error");
