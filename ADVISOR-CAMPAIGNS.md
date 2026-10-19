@@ -35,3 +35,7 @@ Khi ID đợt được nhập trong tab Tư vấn viên, bảng TVV, Top 5/Top 1
 - Bảng `lwv_advisor_campaigns` bật RLS và không có policy ghi công khai.
 - API dùng khóa máy chủ từ biến môi trường Vercel.
 - Migration không xóa bảng hoặc dữ liệu khách hàng/kết quả quay hiện có.
+
+## 5. Tạo đợt ngay trên website
+
+Trong tab **Tư vấn viên**, bấm **Tạo khảo sát mới**, nhập tên và ngày khảo sát rồi bấm **Tạo đợt khảo sát**. API sẽ xác thực `x-admin-pin` với biến `ADMIN_PIN` phía máy chủ, tạo bản ghi trong `lwv_advisor_campaigns`, rồi tự chọn ID mới để cập nhật link và QR. Nếu gặp lỗi 401, kiểm tra PIN quản trị đã lưu trên thiết bị có khớp `ADMIN_PIN` trong Vercel hay không. Nếu gặp lỗi 500, chạy migration trong `supabase/advisor-campaigns-migration.sql` trước.
