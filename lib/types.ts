@@ -14,6 +14,7 @@ export type Customer = {
   event_name?: string;
   event_date?: string;
   event_time?: string;
+  advisor_campaign_id?: string | null;
   appointment_date?: string;
 };
 export type Prize = { id: string; name: string; quantity: number; won: number; active: boolean };
