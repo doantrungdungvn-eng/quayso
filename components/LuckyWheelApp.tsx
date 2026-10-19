@@ -340,7 +340,7 @@ export default function LuckyWheelApp() {
   }
   async function spin() {
     if(spinning)return;
-    if(!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi quay thưởng. Hãy thoát toàn màn hình để đăng nhập nếu cần.","error");return;}
+    if(!isAdmin){setWheelFullscreen(false);showNotice("Bạn chưa đăng nhập quản trị. Đã thoát chế độ toàn màn hình; hãy đăng nhập ở mục Quản trị quay thưởng rồi bấm Quay ngay.","error");return;}
     if(!wheelEligible.length){showNotice("Sự kiện đang chọn chưa có khách hàng đủ điều kiện hoặc tất cả khách đã trúng thưởng.","error");return;}
     // Unlock/resume Web Audio directly from the user's click before starting timers.
     // Browsers may block audio contexts that are first created inside a delayed callback.
@@ -353,11 +353,10 @@ export default function LuckyWheelApp() {
     }
     // In fullscreen, the prize selector is hidden. If the saved selection is stale
     // (for example after deleting/editing prizes), automatically use the first available prize.
-    const prizeToSpin = currentPrize && currentPrize.active && currentPrize.won < currentPrize.quantity
-      ? currentPrize
-      : activePrizes[0];
-    if(!prizeToSpin){showNotice("Không còn giải thưởng đang hoạt động hoặc tất cả giải đã hết số lượng. Vào Cài đặt để kiểm tra giải thưởng.","error");return;}
-    if(prizeToSpin.id !== selectedPrize) setSelectedPrize(prizeToSpin.id);
+    const advisorMode = wheelMode === "advisors";
+    const prizeToSpin = advisorMode ? null : (currentPrize && currentPrize.active && currentPrize.won < currentPrize.quantity ? currentPrize : activePrizes[0]);
+    if(!advisorMode && !prizeToSpin){showNotice("Không còn giải thưởng đang hoạt động hoặc tất cả giải đã hết số lượng. Vào Cài đặt để kiểm tra giải thưởng.","error");return;}
+    if(prizeToSpin && prizeToSpin.id !== selectedPrize) setSelectedPrize(prizeToSpin.id);
     try {
       const idx=randomIndex(wheelEligible.length);const picked=wheelEligible[idx];
       const arc=360/wheelEligible.length;
@@ -371,7 +370,7 @@ export default function LuckyWheelApp() {
       spinTimer.current=setTimeout(async()=>{
         try {
           const prize=prizeToSpin;
-          const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:prize.name,customer_code:picked.customer_code||"",won_at:now()};
+          const win:Winner={id:id(),customer_id:picked.id,full_name:picked.full_name,phone:picked.phone,advisor_name:picked.advisor_name||"",prize_name:advisorMode?"Quà tư vấn viên":(prize?.name||""),customer_code:picked.customer_code||"",won_at:now()};
           // Persist the result server-side so Supabase RLS cannot silently block browser writes.
           if(supabaseConfigured){
             const controller = new AbortController();
@@ -381,7 +380,7 @@ export default function LuckyWheelApp() {
               response=await fetch("/api/admin/winners",{
                 method:"POST",
                 headers:{"Content-Type":"application/json","x-admin-pin":adminPin},
-                body:JSON.stringify({winner:win,prizeId:prize.id}),
+                body:JSON.stringify({winner:win,prizeId:prize?.id,advisorMode}),
                 cache:"no-store",
                 signal:controller.signal
               });
@@ -389,7 +388,7 @@ export default function LuckyWheelApp() {
             const result=await response.json().catch(()=>({}));
             if(!response.ok) throw new Error(result.error||"Không lưu được kết quả trúng thưởng lên Supabase.");
           }
-          const nextW=[win,...winners];const nextP=prizes.map(p=>p.id===prize.id?{...p,won:p.won+1}:p);
+          const nextW=[win,...winners];const nextP=advisorMode?prizes:prizes.map(p=>p.id===prize?.id?{...p,won:p.won+1}:p);
           setWinners(nextW);setPrizes(nextP);setWinnerModal(win);playWinSound();
           saveLocal("lwv_winners",nextW);saveLocal("lwv_prizes",nextP);
           confetti({particleCount:160,spread:90,origin:{y:.6},colors:["#d9a441","#ffffff","#0b694e","#d95d39"]});
@@ -456,6 +455,22 @@ export default function LuckyWheelApp() {
     if(!confirm(`Xóa khách hàng ${c.full_name}? Hành động này không xóa lịch sử trúng thưởng.`))return;
     const next=customers.filter(x=>x.id!==c.id);setCustomers(next);await persistAll(next,prizes,winners);showNotice("Đã xóa khách hàng.");
   }
+  async function resetAdvisorWinners() {
+    const advisorIds = new Set(advisorEntries.map(c=>c.id));
+    const advisorWinners = winners.filter(w=>advisorIds.has(w.customer_id));
+    if(!advisorWinners.length){showNotice("Chưa có kết quả quay TVV để đặt lại.","info");return;}
+    if(!confirm(`Đặt lại ${advisorWinners.length} kết quả quay tư vấn viên? Danh sách TVV sẽ được phép quay lại.`))return;
+    try {
+      if(supabaseConfigured){
+        const response=await fetch("/api/admin/winners?mode=advisors",{method:"DELETE",headers:{"x-admin-pin":adminPin},cache:"no-store"});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(result.error||"Không thể reset kết quả TVV trên Supabase.");
+      }
+      const nextW=winners.filter(w=>!advisorIds.has(w.customer_id));
+      setWinners(nextW);saveLocal("lwv_winners",nextW);await persistAll(customers,prizes,nextW);
+      showNotice("Đã reset kết quả quay TVV. Tư vấn viên có thể quay lại.");
+    } catch(error){showNotice(error instanceof Error?error.message:"Không thể reset kết quả TVV.","error");}
+  }
   async function resetWinners() {
     if(!confirm("Xóa toàn bộ kết quả trúng thưởng và đưa số lượng giải về 0? Chỉ thực hiện nếu ban tổ chức đã xác nhận."))return;
     const nextP=prizes.map(p=>({...p,won:0}));try{await savePrizesToServer(nextP);setWinners([]);setPrizes(nextP);await persistAll(customers,nextP,[]);showNotice("Đã đặt lại kết quả trúng thưởng.");}catch(error){showNotice(error instanceof Error?error.message:"Không thể lưu thay đổi giải thưởng.","error");}
@@ -480,9 +495,9 @@ export default function LuckyWheelApp() {
 
       {tab==="wheel"&&<div className={`wheel-layout ${wheelFullscreen?"wheel-fullscreen-active":""}`}>
         <section className={`panel wheel-panel ${wheelFullscreen?"wheel-fullscreen-panel":""}`}>
-          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>{wheelMode==="advisors"?"VÒNG QUAY TƯ VẤN VIÊN":"VÒNG QUAY MAY MẮN"}</h3><p>{wheelEligible.length} {wheelMode==="advisors"?"TVV":"khách hàng"} đủ điều kiện · {wheelMode==="advisors"?"Khảo sát cam kết TVV":selectedWheelEvent}</p></div><div className="toolbar"><button className={wheelMode==="customers"?"primary-btn":"secondary-btn"} onClick={()=>setWheelMode("customers")}>Quay khách hàng</button><button className={wheelMode==="advisors"?"primary-btn":"secondary-btn"} onClick={()=>{setWheelMode("advisors");setTab("wheel");}}>Quay TVV</button><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button>{wheelMode==="customers"&&<div className="field" style={{minWidth:260,margin:0}}><label>Chọn sự kiện để quay</label><select value={wheelEventFilter==="current"?currentEventKey:wheelEventFilter} onChange={e=>setWheelEventFilter(e.target.value)}>{wheelEventOptions.map(ev=><option key={ev} value={ev}>{ev} · {regularCustomers.filter(c=>eventKey(c)===ev&&c.eligible!==false&&!winners.some(w=>w.customer_id===c.id)).length} khách đủ điều kiện</option>)}</select></div>}<button className="secondary-btn" onClick={async()=>{if(soundEnabled){stopSpinSound();setSoundEnabled(false);showNotice("Đã tắt âm thanh vòng quay.");}else{setSoundEnabled(true);const ok=await unlockAudio();if(ok){playTone(660,0.16,"sine",0.055);showNotice("Đã bật âm thanh. Hãy thử quay số.");}}}} title="Bật hoặc tắt âm thanh">{soundEnabled?"🔊 Âm thanh bật":"🔇 Âm thanh tắt"}</button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>setWheelFullscreen(v=>!v)}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
+          <div style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}><div><h3>{wheelMode==="advisors"?"VÒNG QUAY TƯ VẤN VIÊN":"VÒNG QUAY MAY MẮN"}</h3><p>{wheelEligible.length} {wheelMode==="advisors"?"TVV":"khách hàng"} đủ điều kiện · {wheelMode==="advisors"?"Khảo sát cam kết TVV":selectedWheelEvent}</p></div><div className="toolbar"><button className={wheelMode==="customers"?"primary-btn":"secondary-btn"} onClick={()=>setWheelMode("customers")}>Quay khách hàng</button><button className={wheelMode==="advisors"?"primary-btn":"secondary-btn"} onClick={()=>{setWheelMode("advisors");setTab("wheel");}}>Quay TVV</button><button className="secondary-btn" aria-label="Thu nhỏ vòng quay" title="Thu nhỏ vòng quay" onClick={()=>setWheelZoom(z=>Math.max(0.65,Math.round((z-0.15)*100)/100))}><ZoomOut size={15}/></button><button className="secondary-btn" aria-label="Phóng to vòng quay" title="Phóng to vòng quay" onClick={()=>setWheelZoom(z=>Math.min(1.6,Math.round((z+0.15)*100)/100))}><ZoomIn size={15}/></button>{wheelMode==="customers"&&<div className="field" style={{minWidth:260,margin:0}}><label>Chọn sự kiện để quay</label><select value={wheelEventFilter==="current"?currentEventKey:wheelEventFilter} onChange={e=>setWheelEventFilter(e.target.value)}>{wheelEventOptions.map(ev=><option key={ev} value={ev}>{ev} · {regularCustomers.filter(c=>eventKey(c)===ev&&c.eligible!==false&&!winners.some(w=>w.customer_id===c.id)).length} khách đủ điều kiện</option>)}</select></div>}<button className="secondary-btn" onClick={async()=>{if(soundEnabled){stopSpinSound();setSoundEnabled(false);showNotice("Đã tắt âm thanh vòng quay.");}else{setSoundEnabled(true);const ok=await unlockAudio();if(ok){playTone(660,0.16,"sine",0.055);showNotice("Đã bật âm thanh. Hãy thử quay số.");}}}} title="Bật hoặc tắt âm thanh">{soundEnabled?"🔊 Âm thanh bật":"🔇 Âm thanh tắt"}</button><button className="secondary-btn" onClick={()=>setQrOpen(true)}><QrCode size={15}/> Mở QR</button><button className="secondary-btn" onClick={()=>{if(!wheelFullscreen&&!isAdmin){showNotice("Vui lòng đăng nhập quản trị trước khi mở toàn màn hình để quay số.","error");return;}setWheelFullscreen(v=>!v);}}>{wheelFullscreen?<><Minimize2 size={15}/> Thu nhỏ màn hình</>:<><Maximize2 size={15}/> Toàn màn hình</>}</button></div></div>
           <div className="wheel-wrap" ref={wheelRef} style={{width:wheelFullscreen?`min(88vmin, ${620*wheelZoom}px)`:`min(100%, ${500*wheelZoom}px)`,maxWidth:"100%"}}><div className="wheel-pointer"/><div className="wheel" style={{transform:`rotate(${rotation}deg)`}}><canvas ref={canvasRef}/></div><div className="wheel-center">✦</div></div>
-          <button className="spin-btn" onClick={spin} disabled={spinning||!wheelEligible.length||!activePrizes.length}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
+          <button className="spin-btn" onClick={spin} disabled={spinning||!wheelEligible.length||(wheelMode==="customers"&&!activePrizes.length)}>{spinning?"ĐANG QUAY... 7 GIÂY":"✦  QUAY NGAY  ✦"}</button>
           <div className="wheel-caption">{spinning?"Chúc bạn may mắn! Đang xác định kết quả...":"Kết quả ngẫu nhiên · Mỗi khách chỉ trúng một lần"}</div>
         </section>
         <div className="side-stack">
@@ -493,9 +508,10 @@ export default function LuckyWheelApp() {
           <section className="panel"><div className="panel-head"><div><h3><ShieldCheck size={17} style={{display:"inline",verticalAlign:"-3px",marginRight:7,color:"#0b775a"}}/>Quản trị quay thưởng</h3><p>Chỉ người quản trị được phép bắt đầu quay.</p></div></div>
             {!isAdmin?<form onSubmit={doLogin}><div className="field"><label>PIN quản trị</label><input value={pinInput} onChange={e=>setPinInput(e.target.value)} type="password" inputMode="numeric" placeholder="Nhập PIN quản trị" required/></div><button className="primary-btn full-btn" style={{marginTop:12}}>Đăng nhập quản trị</button><p className="small-muted" style={{marginTop:10}}>Demo dùng PIN phía trình duyệt. Trước khi chạy sự kiện thật, hãy triển khai xác thực server và phân quyền Supabase theo hướng dẫn README.</p></form>:<><div className="notice success">Đã đăng nhập quản trị trên thiết bị này.</div><button className="secondary-btn full-btn" onClick={()=>{setIsAdmin(false);showNotice("Đã đăng xuất quản trị.","info");}}>Đăng xuất</button></>}
           </section>
-          <section className="panel"><div className="panel-head"><div><h3>Kết quả gần nhất</h3><p>{wheelWinners.length} khách hàng đã trúng thưởng trong sự kiện này</p></div><button className="secondary-btn" onClick={()=>setTab("winners")}>Xem tất cả</button></div>
+          <section className="panel"><div className="panel-head"><div><h3>Kết quả gần nhất</h3><p>{wheelWinners.length} {wheelMode==="advisors"?"tư vấn viên":"khách hàng"} đã trúng thưởng trong {wheelMode==="advisors"?"danh sách TVV":"sự kiện này"}</p></div><button className="secondary-btn" onClick={()=>setTab("winners")}>Xem tất cả</button></div>
             {wheelWinners.slice(0,3).map(w=><div className="prize-row" key={w.id}><div><div className="prize-name">{w.full_name}</div><div className="prize-meta">{w.prize_name}</div></div><Trophy size={17} color="#b88b30"/></div>)}
-            {!wheelWinners.length&&<div className="empty">Sự kiện này chưa có kết quả trúng thưởng.</div>}
+            {!wheelWinners.length&&<div className="empty">{wheelMode==="advisors"?"Chưa có tư vấn viên trúng thưởng.":"Sự kiện này chưa có kết quả trúng thưởng."}</div>}
+            {wheelMode==="advisors"&&isAdmin&&<button className="danger-btn full-btn" style={{marginTop:12}} onClick={()=>void resetAdvisorWinners()}><RotateCcw size={14}/> Reset kết quả quay TVV</button>}
           </section>
         </div>
       </div>}
@@ -534,7 +550,7 @@ export default function LuckyWheelApp() {
       {!publicRegistration&&<footer className="footer">VÒNG QUAY MAY MẮN · {eventName} · Dữ liệu khách hàng cần được bảo vệ và chỉ dùng đúng mục đích đã thông báo.</footer>}
     </main>
     {selectedCustomer&&<div className="modal-backdrop" role="dialog" aria-modal="true" onClick={()=>setSelectedCustomer(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="panel-head"><div><h3>Thông tin khách hàng</h3><p>Chi tiết đăng ký và kết quả khảo sát</p></div><button className="secondary-btn" onClick={()=>setSelectedCustomer(null)}><X size={15}/></button></div><div className="customer-detail-grid"><div><span className="small-muted">Họ và tên</span><b>{selectedCustomer.full_name}</b></div><div><span className="small-muted">Mã khách hàng</span><b>{selectedCustomer.customer_code||"Chưa có mã KH"}</b></div><div><span className="small-muted">Số điện thoại</span><b>{selectedCustomer.phone}</b></div><div><span className="small-muted">TVV mời</span><b>{selectedCustomer.advisor_name||"—"}</b></div><div><span className="small-muted">Đơn vị / nhóm</span><b>{selectedCustomer.agency||"—"}</b></div><div><span className="small-muted">Ngày hẹn tư vấn</span><b>{selectedCustomer.appointment_date||"Chưa đặt lịch"}</b></div><div><span className="small-muted">Sự kiện</span><b>{selectedCustomer.event_name||"Chưa phân loại"}</b></div><div><span className="small-muted">Ngày / giờ tổ chức</span><b>{selectedCustomer.event_date||"—"} {selectedCustomer.event_time||""}</b></div><div><span className="small-muted">Mức độ hài lòng</span><b>{selectedCustomer.survey_rating?`${selectedCustomer.survey_rating}/5`:"Chưa trả lời"}</b></div><div><span className="small-muted">Quan tâm giải pháp</span><b>{selectedCustomer.survey_interest||"Chưa cung cấp"}</b></div><div style={{gridColumn:"1 / -1"}}><span className="small-muted">Ý kiến góp ý</span><p style={{whiteSpace:"pre-wrap",margin:"5px 0 0"}}>{selectedCustomer.survey_feedback||"Không có góp ý"}</p></div><div style={{gridColumn:"1 / -1"}}><span className="small-muted">Trạng thái</span><b>{winners.some(w=>w.customer_id===selectedCustomer.id)?`Đã trúng: ${winners.find(w=>w.customer_id===selectedCustomer.id)?.prize_name}`:selectedCustomer.eligible===false?"Không đủ điều kiện":"Đủ điều kiện quay"}</b></div></div><div className="toolbar" style={{marginTop:18,justifyContent:"flex-end",flexWrap:"wrap"}}>{winners.some(w=>w.customer_id===selectedCustomer.id)&&isAdmin&&<button className="danger-btn" onClick={()=>void resetCustomerWin(selectedCustomer)}><RotateCcw size={14}/> Reset trúng thưởng · cho quay lại</button>}<button className="primary-btn" onClick={()=>setSelectedCustomer(null)}>Đóng</button></div></div></div>}
-    {winnerModal&&<div className="result-overlay result-overlay-fullscreen" role="dialog" aria-modal="true"><div className="celebration-confetti" aria-hidden="true">🎉 ✨ 🎊 ✨ 🏆 ✨ 🎉</div><div className="result-card result-card-fullscreen"><div className="result-icon result-icon-large">🏆</div><h2>CHÚC MỪNG KHÁCH HÀNG MAY MẮN</h2><div className="winner-name winner-name-large">{winnerModal.full_name}</div><div className="winner-prize winner-prize-large">✦ {winnerModal.prize_name} ✦</div><div className="winner-detail winner-detail-large">Số điện thoại: ••••{String(winnerModal.phone||"").replace(/\D/g,"").slice(-4)}<br/>TVV mời: {winnerModal.advisor_name||"—"}<br/>Thời gian: {new Date(winnerModal.won_at).toLocaleString("vi-VN")}</div><p className="winner-congrats-note">Chúc mừng quý khách! Kính chúc quý khách nhiều sức khỏe và may mắn.</p><button className="primary-btn winner-confirm-btn" onClick={()=>setWinnerModal(null)}><CheckCircle2 size={20}/> XÁC NHẬN KẾT QUẢ · TIẾP TỤC</button></div></div>}
+    {winnerModal&&<div className="result-overlay result-overlay-fullscreen" role="dialog" aria-modal="true"><div className="celebration-confetti" aria-hidden="true">🎉 ✨ 🎊 ✨ 🏆 ✨ 🎉</div><div className="result-card result-card-fullscreen"><div className="result-icon result-icon-large">🏆</div><h2>{customers.some(c=>c.id===winnerModal.customer_id&&c.event_name==="__TVV_SURVEY__")?"CHÚC MỪNG TƯ VẤN VIÊN TRÚNG THƯỞNG":"CHÚC MỪNG KHÁCH HÀNG MAY MẮN"}</h2><div className="winner-name winner-name-large">{winnerModal.full_name}</div><div className="winner-prize winner-prize-large">✦ {winnerModal.prize_name} ✦</div><div className="winner-detail winner-detail-large">Số điện thoại: ••••{String(winnerModal.phone||"").replace(/\D/g,"").slice(-4)}<br/>TVV mời: {winnerModal.advisor_name||"—"}<br/>Thời gian: {new Date(winnerModal.won_at).toLocaleString("vi-VN")}</div><p className="winner-congrats-note">Chúc mừng quý khách! Kính chúc quý khách nhiều sức khỏe và may mắn.</p><button className="primary-btn winner-confirm-btn" onClick={()=>setWinnerModal(null)}><CheckCircle2 size={20}/> XÁC NHẬN KẾT QUẢ · TIẾP TỤC</button></div></div>}
     {!publicRegistration&&qrFullscreen&&<div className="qr-fullscreen-overlay" role="dialog" aria-modal="true" aria-label="QR đăng ký sự kiện toàn màn hình"><div className="qr-fullscreen-top"><div><div className="qr-fullscreen-title">{eventName||"VÒNG QUAY MAY MẮN"}</div><div className="qr-fullscreen-meta">{eventDate?new Date(eventDate+"T00:00:00").toLocaleDateString("vi-VN"):""}{eventTime?` · ${eventTime}`:""}</div></div><button className="qr-fullscreen-close" onClick={()=>setQrFullscreen(false)}><X size={18}/> Đóng <span>(ESC)</span></button></div><div className="qr-fullscreen-content"><div className="qr-fullscreen-code"><QRCodeSVG value={registrationUrl||"https://example.com"} size={640} level="H" includeMargin/></div><h2>QUÉT MÃ QR ĐỂ ĐĂNG KÝ</h2><p>Dùng camera điện thoại để quét mã và điền thông tin tham gia sự kiện</p></div><div className="qr-fullscreen-url">{registrationUrl}</div></div>}
     {!publicRegistration&&qrOpen&&<div className="modal-backdrop" onClick={()=>setQrOpen(false)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="panel-head"><div><h3>QR đăng ký khách hàng</h3><p>Quét bằng điện thoại để mở biểu mẫu.</p></div><button className="secondary-btn" onClick={()=>setQrOpen(false)}><X size={15}/></button></div><div className="qr-box"><QRCodeSVG value={registrationUrl||"https://example.com"} size={260} level="H" includeMargin/></div><p className="link-break" style={{marginTop:12}}>{registrationUrl}</p><div className="toolbar" style={{marginTop:14}}><button className="secondary-btn" onClick={()=>{navigator.clipboard?.writeText(registrationUrl);showNotice("Đã sao chép link QR.");}}><Copy size={14}/> Sao chép link</button><button className="primary-btn" onClick={()=>setQrOpen(false)}>Đóng</button></div></div></div>}
   </div>;
