@@ -105,3 +105,14 @@ Sau đó đẩy mã nguồn lên GitHub và chờ Vercel deploy thành công. C�
 - Các bản ghi được đánh dấu nội bộ bằng `event_name = __TVV_SURVEY__` trong `lwv_customers` để dùng lại cơ chế đồng bộ hiện có; giao diện khách hàng và vòng quay khách hàng lọc các bản ghi này ra.
 - Trong tab **Tư vấn viên**, quét QR hoặc sao chép link, xem danh sách, xuất Excel và chọn **Mở vòng quay TVV**. Trên tab Vòng quay có nút chuyển giữa quay khách hàng và quay TVV.
 - Cần cấu hình `NEXT_PUBLIC_SUPABASE_URL` và `SUPABASE_SERVICE_ROLE_KEY` trên Vercel để biểu mẫu TVV được lưu tập trung. Không đưa service key vào mã phía trình duyệt.
+
+
+## Đăng nhập và phân quyền (mới)
+
+1. Chạy `supabase/auth-roles-migration.sql` trong Supabase SQL Editor. Migration chỉ tạo bảng vai trò; không xóa hoặc sửa dữ liệu khách hàng, giải thưởng, kết quả quay.
+2. Trong Vercel Environment Variables, kiểm tra `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. Thêm `ADMIN_BOOTSTRAP_SECRET` là chuỗi ngẫu nhiên dài, chỉ dùng một lần. Không đặt service key với tiền tố `NEXT_PUBLIC_`.
+3. Deploy. Tạo Admin đầu tiên bằng POST `/api/auth/bootstrap-admin`, JSON `{"email":"admin@example.com","password":"mật-khẩu-dài-tối-thiểu-10-ký-tự"}` và header `x-bootstrap-secret: <ADMIN_BOOTSTRAP_SECRET>`. Gửi request bằng công cụ API an toàn, không chia sẻ secret trong chat. Chỉ tạo được khi chưa có Admin.
+4. Sau khi tạo Admin, xóa `ADMIN_BOOTSTRAP_SECRET` khỏi Vercel và redeploy. Đăng nhập tại `/login`, sau đó mở `/admin/users` để tạo Nhân viên/TVV, Người xem hoặc Admin.
+5. Admin có thể tạo tài khoản và khóa/mở khóa; nhân viên dùng ứng dụng; người xem không được gọi API quản trị. Mọi API `/api/admin/*` yêu cầu đăng nhập hợp lệ và vai trò Admin.
+
+Lưu ý: Supabase Auth email/mật khẩu phải được bật trong Supabase Authentication. Cấu hình Site URL và Redirect URLs cho domain Vercel production, `/reset-password`, và `/update-password`.
